@@ -1,0 +1,10 @@
+import {readFile,readdir,access} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import path from 'node:path';
+const html=await readFile('dist/index.html','utf8');
+for(const match of html.matchAll(/(?:src|href)="(\.\/[^"]+)"/g))await access(path.join('dist',match[1]));
+for(const name of await readdir('dist'))if(name.endsWith('.js'))execFileSync(process.execPath,['--check',path.join('dist',name)],{stdio:'inherit'});
+for(const name of ['plan.md','README.md','package.json','.gitignore'])await access(name);
+const manifest=JSON.parse(await readFile('.openai/hosting.json','utf8'));if(!manifest.project_id||manifest.static.directory!=='dist')throw new Error('Invalid hosting manifest');
+if(!html.includes('<title>')||!html.includes('rel="icon"'))throw new Error('Missing page metadata');
+console.log('JavaScript syntax, local assets, documentation, and static hosting manifest verified.');

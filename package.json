@@ -1,0 +1,9 @@
+{
+  "name": "thread-care",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hardware-free daily continuity companion prototype",
+  "scripts": {"dev": "node server.mjs", "start": "node server.mjs", "test": "node --test tests/*.test.mjs", "check": "node scripts/check.mjs"},
+  "engines": {"node": ">=20"}
+}
