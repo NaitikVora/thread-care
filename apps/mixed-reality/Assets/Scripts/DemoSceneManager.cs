@@ -19,6 +19,7 @@ namespace RecallAR
     {
         [SerializeField] private QuestManager questManager;
         [SerializeField] private MemoryGameController memoryGame;
+        [SerializeField] private GuidePathController guidePath;
         [SerializeField] private MemoryCardController memoryCard;
         [SerializeField] private MemoryGardenController memoryGarden;
         [SerializeField] private GameObject instructionPanel;
@@ -72,10 +73,20 @@ namespace RecallAR
         {
             ShowInstruction(quest.instruction);
             SetProgress($"Activity {ActivityNumber} of {TotalActivities}   •   H for a hint");
+
+            // The last activity gets a floor pathway to its target (the
+            // caregiver asked for guided wayfinding on the final task).
+            if (guidePath != null)
+            {
+                var isLast = questIndex == questManager.QuestCount - 1;
+                if (isLast && quest.targetObject != null) guidePath.Show(quest.targetObject.transform);
+                else guidePath.Hide();
+            }
         }
 
         private void HandleQuestCompleted(QuestDefinition quest)
         {
+            if (guidePath != null) guidePath.Hide();
             ShowInstruction(string.IsNullOrEmpty(quest.foundText) ? "You found it!" : quest.foundText);
             pendingMemoryFor = quest;
 
@@ -134,6 +145,7 @@ namespace RecallAR
 
         private void Restart()
         {
+            if (guidePath != null) guidePath.Hide();
             finished = false;
             questIndex = -1;
             pendingMemoryFor = null;

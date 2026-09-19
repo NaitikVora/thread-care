@@ -86,7 +86,7 @@ namespace RecallAR.EditorTools
             BuildKitchen(out var mug);
             BuildDining();
             BuildLiving();
-            BuildBedroomCorner(out var glasses);
+            BuildBedroomCorner(out var phone);
             var sarah = BuildSarah();
             var corner = BuildMemoryCorner();
             var gardenArea = BuildGardenArea();
@@ -98,7 +98,7 @@ namespace RecallAR.EditorTools
                 return;
             }
             AttachGaze(rig, out var personProvider, out var objectProvider);
-            BuildHud(rig, worldSpaceHud, hudShader, legend, mug, glasses, sarah, corner, gardenArea, objectProvider, personProvider);
+            BuildHud(rig, worldSpaceHud, hudShader, legend, mug, phone, sarah, corner, gardenArea, objectProvider, personProvider);
 
             EditorSceneManager.MarkSceneDirty(scene);
 
@@ -277,46 +277,45 @@ namespace RecallAR.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // A little bedside corner: nightstand with a lamp and the reading glasses.
+        // A little bedside corner: nightstand with a lamp and John's phone.
 
-        private static void BuildBedroomCorner(out RecallARObject glasses)
+        private static void BuildBedroomCorner(out RecallARObject phone)
         {
             var corner = new GameObject("Bedside Corner").transform;
             var nightstand = Place(corner, "cabinetBedDrawerTable", -3.6f, -InnerZ + 2.05f * S * 0.5f + 0.02f, 180f, S);
             var top = nightstand.bounds.max.y;
             Place(corner, "lampRoundTable", -3.78f, -2.95f, 0f, S, floorY: top, addCollider: false);
-            glasses = BuildGlasses(new Vector3(-3.42f, top, -2.9f));
+            phone = BuildPhone(new Vector3(-3.42f, top, -2.9f));
         }
 
-        private static RecallARObject BuildGlasses(Vector3 basePosition)
+        private static RecallARObject BuildPhone(Vector3 basePosition)
         {
-            var root = new GameObject("Reading Glasses");
+            var root = new GameObject("Phone");
             root.transform.position = basePosition;
-            var dark = new Color(0.12f, 0.12f, 0.14f);
+            root.transform.rotation = Quaternion.Euler(0f, -20f, 0f);
 
-            foreach (var dx in new[] { -0.045f, 0.045f })
-            {
-                var lens = CreateBlock(root.transform, "Lens", PrimitiveType.Cube,
-                    basePosition + new Vector3(dx, 0.005f, 0f), new Vector3(0.07f, 0.01f, 0.05f), dark);
-                UnityEngine.Object.DestroyImmediate(lens.GetComponent<Collider>());
-            }
-            var bridge = CreateBlock(root.transform, "Bridge", PrimitiveType.Cube,
-                basePosition + new Vector3(0f, 0.006f, 0f), new Vector3(0.03f, 0.008f, 0.012f), dark);
-            UnityEngine.Object.DestroyImmediate(bridge.GetComponent<Collider>());
+            var body = CreateBlock(root.transform, "Body", PrimitiveType.Cube,
+                basePosition + new Vector3(0f, 0.005f, 0f), new Vector3(0.075f, 0.009f, 0.155f), new Color(0.1f, 0.1f, 0.12f));
+            body.transform.localRotation = Quaternion.identity;
+            UnityEngine.Object.DestroyImmediate(body.GetComponent<Collider>());
+            var screen = CreateBlock(root.transform, "Screen", PrimitiveType.Cube,
+                basePosition + new Vector3(0f, 0.0105f, 0f), new Vector3(0.066f, 0.002f, 0.14f), new Color(0.55f, 0.75f, 0.95f));
+            screen.transform.localRotation = Quaternion.identity;
+            UnityEngine.Object.DestroyImmediate(screen.GetComponent<Collider>());
 
             var collider = root.AddComponent<BoxCollider>();
             collider.center = new Vector3(0f, 0.02f, 0f);
-            collider.size = new Vector3(0.2f, 0.08f, 0.12f);
+            collider.size = new Vector3(0.14f, 0.08f, 0.2f);
 
-            var glasses = root.AddComponent<RecallARObject>();
-            glasses.objectId = "reading_glasses_01";
-            glasses.displayName = "Reading Glasses";
-            glasses.category = "Bedroom";
-            glasses.associatedMemory = "You usually keep these on your nightstand, next to the little lamp.";
-            glasses.hintText = "Try looking near the little lamp in the corner.";
-            glasses.rewardPoints = 10;
-            glasses.recognitionDelay = 1.5f;
-            return glasses;
+            var phone = root.AddComponent<RecallARObject>();
+            phone.objectId = "phone_01";
+            phone.displayName = "Phone";
+            phone.category = "Bedroom";
+            phone.associatedMemory = "You usually keep your phone on the nightstand, next to the little lamp, so you can call Sarah.";
+            phone.hintText = "Follow the little arrows on the floor — they lead to the lamp in the corner.";
+            phone.rewardPoints = 10;
+            phone.recognitionDelay = 1.5f;
+            return phone;
         }
 
         // ------------------------------------------------------------------
@@ -356,36 +355,51 @@ namespace RecallAR.EditorTools
             sign.transform.position = new Vector3(2.2f, 2.15f, -InnerZ + 0.06f);
             sign.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
             var text = sign.AddComponent<TextMesh>();
-            text.text = "Memory Corner\nstep on the mat";
+            text.text = "Memory Corner\nstep on the mat, then look at a picture";
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.fontSize = 64;
-            text.characterSize = 0.05f;
+            text.characterSize = 0.04f;
             text.anchor = TextAnchor.MiddleCenter;
             text.alignment = TextAlignment.Center;
             text.color = new Color(0.3f, 0.5f, 0.42f);
             sign.GetComponent<MeshRenderer>().material = text.font.material;
 
+            // Framed portraits on the wall (rendered from the same stylized
+            // characters), not people standing in the room.
             var people = new[]
             {
-                MakePerson(corner, "character-i", 1.25f, "susan_01", "Susan", "Your wife",
+                MakePortrait(corner, "character-i", 1.25f, "susan_01", "Susan", "Your wife",
                     "Susan has white hair and glasses.", "Susan and you have been married since 1978.",
                     "You and Susan still make Sunday breakfast together."),
-                MakePerson(corner, "character-p", 2.2f, "jack_01", "Jack", "Your brother",
-                    "Jack is wearing a blue shirt.", "Jack is your brother.",
+                MakePortrait(corner, "character-c", 2.2f, "jack_01", "Jack", "Your brother",
+                    "Jack is wearing a green shirt.", "Jack is your brother.",
                     "You and Jack grew up together."),
-                MakePerson(corner, "character-k", 3.15f, "michael_01", "Michael", "Your son",
+                MakePortrait(corner, "character-k", 3.15f, "michael_01", "Michael", "Your son",
                     "Michael is wearing a red shirt.", "Michael lives in New York.",
                     "Michael calls you every Sunday afternoon."),
             };
             return (mat.transform, sign, people);
         }
 
-        private static RecognizablePerson MakePerson(Transform parent, string model, float x, string id, string name,
+        private static RecognizablePerson MakePortrait(Transform parent, string model, float x, string id, string name,
             string relationship, string hint, string description, string memory)
         {
-            var placed = Place(parent, model, x, -InnerZ + 0.45f, 0f, CharacterScale);
-            placed.go.name = name;
-            var p = placed.go.AddComponent<RecognizablePerson>();
+            var portrait = PortraitBaker.GetOrBake(model, $"{ModelsRoot}/BlockyCharacters/{model}.fbx", CharacterScale, 1.15f);
+
+            var frame = CreateBlock(parent, name + " (portrait)", PrimitiveType.Cube,
+                new Vector3(x, 1.45f, -InnerZ + 0.03f), new Vector3(0.52f, 0.62f, 0.035f), new Color(0.35f, 0.24f, 0.16f));
+
+            var picture = CreateBlock(frame.transform, "Picture", PrimitiveType.Cube,
+                new Vector3(x, 1.45f, -InnerZ + 0.055f), new Vector3(0.44f, 0.54f, 0.012f), Color.white);
+            UnityEngine.Object.DestroyImmediate(picture.GetComponent<Collider>());
+            if (portrait != null)
+            {
+                var material = new Material(Shader.Find("Standard")) { name = name + " Portrait", mainTexture = portrait };
+                material.SetFloat("_Glossiness", 0.15f);
+                picture.GetComponent<Renderer>().material = material;
+            }
+
+            var p = frame.AddComponent<RecognizablePerson>();
             p.personId = id;
             p.displayName = name;
             p.relationship = relationship;
@@ -459,7 +473,7 @@ namespace RecallAR.EditorTools
         // HUD + managers
 
         private static void BuildHud(PlayerRig rig, bool worldSpaceHud, Shader hudShader, string legend,
-            RecallARObject mug, RecallARObject glasses, RecognizablePerson sarah,
+            RecallARObject mug, RecallARObject phone, RecognizablePerson sarah,
             (Transform zone, GameObject sign, RecognizablePerson[] people) corner, Transform gardenArea,
             SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
         {
@@ -557,8 +571,8 @@ namespace RecallAR.EditorTools
                     instruction = "Let's find your coffee mug.", hintText = mug.hintText, foundText = "You found it!" },
                 new QuestDefinition { questId = "find_sarah", kind = QuestTargetKind.Person, targetPerson = sarah, rewardPoints = 5,
                     instruction = "Sarah is visiting today. Can you find her?", hintText = "Try looking near the sofa, by the window.", foundText = "That's Sarah!" },
-                new QuestDefinition { questId = "reading_glasses_quest", kind = QuestTargetKind.Object, targetObject = glasses, rewardPoints = 10,
-                    instruction = "Let's find your reading glasses.", hintText = glasses.hintText, foundText = "You found them!" },
+                new QuestDefinition { questId = "phone_quest", kind = QuestTargetKind.Object, targetObject = phone, rewardPoints = 10,
+                    instruction = "Let's find your phone. Follow the arrows on the floor.", hintText = phone.hintText, foundText = "You found it!" },
             });
 
             var memoryCard = managers.AddComponent<MemoryCardController>();
@@ -610,9 +624,16 @@ namespace RecallAR.EditorTools
             SetField(memoryGame, "timerPanel", timerPanel.gameObject);
             SetField(memoryGame, "cornerSign", corner.sign);
 
+            // Floor pathway for the final activity, routed around the furniture
+            // along the front wall to the bedside corner.
+            var guidePath = managers.AddComponent<GuidePathController>();
+            SetField(guidePath, "player", rig.camera.transform);
+            SetVector3Array(guidePath, "waypoints", new[] { new Vector3(0f, 0f, -2.6f), new Vector3(-2.9f, 0f, -2.8f) });
+
             var demoManager = managers.AddComponent<DemoSceneManager>();
             SetField(demoManager, "questManager", questManager);
             SetField(demoManager, "memoryGame", memoryGame);
+            SetField(demoManager, "guidePath", guidePath);
             SetField(demoManager, "memoryCard", memoryCard);
             SetField(demoManager, "memoryGarden", memoryGarden);
             SetField(demoManager, "instructionPanel", instructionPanel.gameObject);
@@ -828,6 +849,21 @@ namespace RecallAR.EditorTools
             prop.arraySize = values.Length;
             for (var i = 0; i < values.Length; i++)
                 prop.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetVector3Array(UnityEngine.Object target, string fieldName, Vector3[] values)
+        {
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(fieldName);
+            if (prop == null)
+            {
+                Debug.LogError($"DemoSceneBuilder: no array field '{fieldName}' on {target.GetType().Name}");
+                return;
+            }
+            prop.arraySize = values.Length;
+            for (var i = 0; i < values.Length; i++)
+                prop.GetArrayElementAtIndex(i).vector3Value = values[i];
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

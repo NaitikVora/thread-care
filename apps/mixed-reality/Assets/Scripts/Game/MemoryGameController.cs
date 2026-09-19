@@ -102,7 +102,7 @@ namespace RecallAR.Game
         private void AskCurrent()
         {
             var target = order[round];
-            Message?.Invoke($"Which one is {target.displayName}, {target.relationship.ToLowerInvariant()}? Look at them.");
+            Message?.Invoke($"Which picture is {target.displayName}, {target.relationship.ToLowerInvariant()}? Look at it.");
         }
 
         private void HandleAnswer(RecognizablePerson chosen)
