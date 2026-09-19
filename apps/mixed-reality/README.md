@@ -37,8 +37,8 @@ so it's reproducible and has zero imported-asset dependencies.
 - Look at the coffee mug (on the table) and hold your gaze for about 1.5 seconds — it
   highlights, "You found it!" appears, the Boston Trip memory is revealed, +10 points
   shows, and a flower grows in the Memory Garden.
-- Look at Sarah (the lavender capsule) and hold your gaze — her identity card appears.
-  Press **R** to see the associated memory.
+- Look at Sarah (the character model near the sofa) and hold your gaze — her identity
+  card appears. Press **R** to see the associated memory.
 - Press **H** any time during the mug quest for a hint ("Try looking near the coffee
   machine.") — hints are never penalized, just counted.
 
@@ -92,6 +92,11 @@ sign-in inside the Editor that can't be scripted here. Once you've added it your
   [`Packages/manifest.json`](Packages/manifest.json); a bare project created via Unity's
   `-createProject` CLI flag doesn't include it by default the way the Editor's own "3D"
   template does.
-- No Meta XR SDK, no TextMeshPro, no imported assets — every GameObject (including the
-  flowers in the Memory Garden) is built from Unity primitives at runtime/build-time, so
-  this project has zero external asset dependencies to go stale.
+- No Meta XR SDK, no TextMeshPro. The Memory Garden's flowers, and the mug/table/coffee
+  machine/glasses/nightstand, are still built from plain Unity primitives (see the
+  comment in `DemoSceneBuilder.BuildEnvironment` for why those specific props stay
+  primitives rather than models). Everything else in the room — sofa, rug, coffee table,
+  bookcase, floor lamp, potted plant, TV cabinet, and the Sarah avatar — is a real free
+  model from [Kenney](https://kenney.nl) (CC0, no login or attribution required) under
+  [`Assets/Art/Kenney`](Assets/Art/Kenney); see
+  [`Assets/Art/Kenney/CREDITS.md`](Assets/Art/Kenney/CREDITS.md) for exactly which packs.

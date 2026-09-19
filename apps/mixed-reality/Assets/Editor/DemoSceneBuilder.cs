@@ -24,6 +24,7 @@ namespace RecallAR.EditorTools
     public static class DemoSceneBuilder
     {
         private const string ScenePath = "Assets/Scenes/RecallAR_Demo_LivingRoom.unity";
+        private const string ModelsRoot = "Assets/Art/Kenney";
 
         [MenuItem("RecallAR/Build Demo Living Room Scene")]
         public static void BuildFromMenu()
@@ -79,15 +80,33 @@ namespace RecallAR.EditorTools
         {
             var room = new GameObject("Environment").transform;
 
-            CreateBlock(room, "Floor", PrimitiveType.Plane, new Vector3(0, 0, 0), new Vector3(3, 1, 3), new Color(0.82f, 0.74f, 0.62f));
-            CreateBlock(room, "Back Wall", PrimitiveType.Cube, new Vector3(0, 2, 8), new Vector3(16, 4, 0.1f), new Color(0.9f, 0.88f, 0.83f));
-            CreateBlock(room, "Left Wall", PrimitiveType.Cube, new Vector3(-8, 2, 0), new Vector3(0.1f, 4, 16), new Color(0.9f, 0.88f, 0.83f));
+            CreateBlock(room, "Floor", PrimitiveType.Plane, new Vector3(0, 0, 0), new Vector3(3, 1, 3), new Color(0.86f, 0.78f, 0.64f));
+            CreateBlock(room, "Back Wall", PrimitiveType.Cube, new Vector3(0, 2, 8), new Vector3(16, 4, 0.1f), new Color(0.93f, 0.9f, 0.85f));
+            CreateBlock(room, "Left Wall", PrimitiveType.Cube, new Vector3(-8, 2, 0), new Vector3(0.1f, 4, 16), new Color(0.93f, 0.9f, 0.85f));
 
-            CreateBlock(room, "Sofa", PrimitiveType.Cube, new Vector3(-4, 0.3f, 3), new Vector3(1.8f, 0.6f, 0.8f), new Color(0.5f, 0.55f, 0.7f));
+            // The mug/table/coffee-machine and glasses/nightstand clusters stay
+            // as plain primitives (not real models) on purpose: their exact,
+            // known heights are what makes the mug sit correctly on the table
+            // and the glasses sit correctly on the nightstand. Swapping those
+            // for imported models with unknown pivot/height would risk them
+            // floating or clipping, right at the two spots most likely to be
+            // stared at. Everything below is real Kenney furniture instead of
+            // primitives — purely decorative, so imprecise placement there is
+            // harmless.
             CreateBlock(room, "Table", PrimitiveType.Cube, new Vector3(1.5f, 0.25f, 2.5f), new Vector3(1.2f, 0.5f, 0.7f), new Color(0.45f, 0.32f, 0.22f));
             CreateBlock(room, "Coffee Machine", PrimitiveType.Cube, new Vector3(1.8f, 0.65f, 2.4f), new Vector3(0.25f, 0.3f, 0.25f), new Color(0.2f, 0.2f, 0.22f));
             CreateBlock(room, "Nightstand", PrimitiveType.Cube, new Vector3(-3, 0.3f, -3), new Vector3(0.5f, 0.6f, 0.5f), new Color(0.45f, 0.32f, 0.22f));
-            CreateBlock(room, "Family Photograph", PrimitiveType.Cube, new Vector3(0, 1.5f, 7.5f), new Vector3(0.6f, 0.4f, 0.03f), new Color(0.8f, 0.7f, 0.4f));
+            CreateBlock(room, "Family Photograph Frame", PrimitiveType.Cube, new Vector3(0, 1.5f, 7.5f), new Vector3(0.65f, 0.45f, 0.04f), new Color(0.35f, 0.24f, 0.16f));
+            CreateBlock(room, "Family Photograph", PrimitiveType.Cube, new Vector3(0, 1.5f, 7.47f), new Vector3(0.55f, 0.35f, 0.02f), new Color(0.9f, 0.82f, 0.6f));
+
+            SpawnModel(room, "loungeSofaLong", new Vector3(-4.5f, 0, 3.5f), 200f);
+            SpawnModel(room, "rugRounded", new Vector3(-3.2f, 0.01f, 3.2f), 0f, new Vector3(1.6f, 1f, 1.6f));
+            SpawnModel(room, "tableCoffee", new Vector3(-3.2f, 0, 3.2f), 15f);
+            SpawnModel(room, "sideTableDrawers", new Vector3(-5.6f, 0, 4.8f), -20f);
+            SpawnModel(room, "lampRoundFloor", new Vector3(-6, 0, 0.5f), 0f);
+            SpawnModel(room, "bookcaseOpen", new Vector3(-7.5f, 0, -1.5f), 90f);
+            SpawnModel(room, "pottedPlant", new Vector3(-7.3f, 0, 5.5f), 0f);
+            SpawnModel(room, "cabinetTelevision", new Vector3(0, 0, -6.7f), 180f);
         }
 
         private static RecallARObject BuildMug()
@@ -124,8 +143,8 @@ namespace RecallAR.EditorTools
 
         private static RecognizablePerson BuildSarah()
         {
-            var sarahGo = CreateBlock(null, "Sarah (avatar placeholder)", PrimitiveType.Capsule,
-                new Vector3(1, 1, 1), new Vector3(0.6f, 1, 0.6f), new Color(0.75f, 0.65f, 0.95f));
+            var sarahGo = SpawnModel(null, "character-e", new Vector3(1, 0, 1), -150f);
+            sarahGo.name = "Sarah (avatar placeholder)";
 
             var sarah = sarahGo.AddComponent<RecognizablePerson>();
             sarah.personId = "sarah_01";
@@ -303,6 +322,52 @@ namespace RecallAR.EditorTools
         // --- Small building-block helpers ---
 
         private enum Anchor { TopLeft, TopCenter, TopRight, MiddleLeft, MiddleCenter, MiddleRight, BottomLeft, BottomCenter, BottomRight }
+
+        /// <summary>
+        /// Instantiates a Kenney FBX model (CC0, see Assets/Art/Kenney) by
+        /// name, looking in both the furniture and character folders. Adds a
+        /// bounding-box collider since imported models don't come with one,
+        /// unlike GameObject.CreatePrimitive.
+        /// </summary>
+        private static GameObject SpawnModel(Transform parent, string modelName, Vector3 position, float yRotationDegrees, Vector3? scaleOverride = null)
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelsRoot}/FurnitureKit/{modelName}.fbx")
+                        ?? AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelsRoot}/BlockyCharacters/{modelName}.fbx");
+            if (asset == null)
+            {
+                Debug.LogError($"DemoSceneBuilder: model asset not found for '{modelName}'");
+                return null;
+            }
+
+            var instance = (GameObject)Object.Instantiate(asset);
+            instance.name = modelName;
+            if (parent != null) instance.transform.SetParent(parent, false);
+            instance.transform.position = position;
+            instance.transform.rotation = Quaternion.Euler(0f, yRotationDegrees, 0f);
+            if (scaleOverride.HasValue) instance.transform.localScale = scaleOverride.Value;
+
+            EnsureCollider(instance);
+            return instance;
+        }
+
+        private static void EnsureCollider(GameObject root)
+        {
+            if (root.GetComponentInChildren<Collider>() != null) return;
+
+            var renderers = root.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) return;
+
+            var bounds = renderers[0].bounds;
+            foreach (var r in renderers) bounds.Encapsulate(r.bounds);
+
+            var scale = root.transform.lossyScale;
+            var box = root.AddComponent<BoxCollider>();
+            box.center = root.transform.InverseTransformPoint(bounds.center);
+            box.size = new Vector3(
+                bounds.size.x / Mathf.Max(Mathf.Abs(scale.x), 0.0001f),
+                bounds.size.y / Mathf.Max(Mathf.Abs(scale.y), 0.0001f),
+                bounds.size.z / Mathf.Max(Mathf.Abs(scale.z), 0.0001f));
+        }
 
         private static GameObject CreateBlock(Transform parent, string name, PrimitiveType type, Vector3 position, Vector3 scale, Color color)
         {
