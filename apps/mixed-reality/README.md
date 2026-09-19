@@ -33,18 +33,29 @@ so it's reproducible and has zero imported-asset dependencies.
 
 ## Play it
 
-- **Mouse** to look around, **WASD** to move (Esc frees the cursor).
-- Look at the coffee mug (on the table) and hold your gaze for about 1.5 seconds — it
-  highlights, "You found it!" appears, the Boston Trip memory is revealed, +10 points
-  shows, and a flower grows in the Memory Garden.
-- Look at Sarah (the character model near the sofa) and hold your gaze — her identity
-  card appears. Press **R** to see the associated memory.
-- Press **H** any time during the mug quest for a hint ("Try looking near the coffee
-  machine.") — hints are never penalized, just counted.
+You start by the front wall of a furnished apartment room (kitchen along the back wall,
+dining table, sofa and TV area, a bedside corner). **Mouse** to look, **WASD** to walk —
+you're grounded with gravity and collide with furniture, like a person, not a drone.
+**Esc** frees the cursor; click to lock it again.
 
-(The gaze camera locks the cursor for mouse-look, so **H**/**R** are keyboard shortcuts
-rather than requiring a UI-button click; the on-screen buttons still work too if you
-press Esc to free the cursor first.)
+The demo is a guided sequence of three activities, each followed by a memory card you
+dismiss with **Space** (or the Continue button) to move on:
+
+1. **"Let's find your coffee mug."** — it's on the kitchen counter next to the coffee
+   machine. Hold your gaze on it ~1.5 s (the centre reticle brightens as you hold) →
+   "You found it!" → Boston Trip memory → +10 → a flower grows in the Memory Garden.
+2. **"Sarah is visiting today. Can you find her?"** — she's standing by the rug near the
+   sofa. Gaze → "That's Sarah!" and her identity card → **R** (or Space) to remember →
+   memory card → +5 → another flower.
+3. **"Let's find your reading glasses."** — on the nightstand by the little lamp in the
+   front-left corner → memory → +10 → flower.
+
+Then: *"That's everything for today. Wonderful, John!"* with a flower count. Space
+plays again (the garden keeps its flowers).
+
+**H** shows a hint for the current activity at any time — hints are never penalized,
+just counted. Looking at Sarah outside her activity still shows her card; that's by
+design (recognition help is always on).
 
 ## Architecture
 

@@ -5,10 +5,9 @@ using UnityEngine.UI;
 namespace RecallAR.UI
 {
     /// <summary>
-    /// Shows the current quest's hint text on request. Hints are always
-    /// available and never penalized (spec sections 6 and 12) — this
-    /// controller only displays text; <see cref="QuestManager"/> is the one
-    /// that (harmlessly) counts how many were used.
+    /// Shows the active quest's hint on request (H key or button). Hints are
+    /// always available and never penalized; <see cref="QuestManager"/> only
+    /// counts them. The hint hides itself after a while so it never nags.
     /// </summary>
     public class HintController : MonoBehaviour
     {
@@ -17,6 +16,9 @@ namespace RecallAR.UI
         [SerializeField] private Button hintButton;
         [SerializeField] private QuestManager questManager;
         [SerializeField] private KeyCode hintKey = KeyCode.H;
+        [SerializeField] private float showDuration = 6f;
+
+        private float hideAt = -1f;
 
         private void Awake()
         {
@@ -27,12 +29,10 @@ namespace RecallAR.UI
             Hide();
         }
 
-        // The gaze camera locks the cursor for mouse-look, so mouse clicks on
-        // the "Need a Hint?" button aren't reachable by default (Escape frees
-        // the cursor if someone wants to click it instead) — H always works.
         private void Update()
         {
             if (Input.GetKeyDown(hintKey) && questManager.ActiveQuest != null) RequestHint();
+            if (hideAt >= 0f && Time.time >= hideAt) Hide();
         }
 
         private void RequestHint() => questManager.RequestHint();
@@ -41,10 +41,12 @@ namespace RecallAR.UI
         {
             hintText.text = text;
             panel.SetActive(true);
+            hideAt = Time.time + showDuration;
         }
 
         private void Hide()
         {
+            hideAt = -1f;
             if (panel != null) panel.SetActive(false);
         }
     }

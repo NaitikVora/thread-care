@@ -4,45 +4,61 @@ using UnityEngine;
 namespace RecallAR.UI
 {
     /// <summary>
-    /// Brightens the object currently being gazed at, proportional to how
-    /// long the gaze has been held — a gentle progress cue rather than a
-    /// jarring on/off highlight.
+    /// Warms the tint of whatever object or person is currently being gazed
+    /// at, proportional to how long the gaze has been held — a gentle
+    /// progress cue rather than a jarring on/off highlight.
     /// </summary>
     public class ObjectHighlightController : MonoBehaviour
     {
         [SerializeField] private SimulatedObjectRecognitionProvider objectRecognition;
-        [SerializeField] private Color highlightColor = new Color(1f, 0.92f, 0.55f);
+        [SerializeField] private SimulatedPersonRecognitionProvider personRecognition;
+        [SerializeField] private Color highlightTint = new Color(1f, 0.85f, 0.45f);
 
-        private Renderer highlightedRenderer;
-        private Color originalColor;
+        private Renderer[] highlighted = new Renderer[0];
+        private Color[] originals = new Color[0];
+        private GameObject highlightedRoot;
 
         private void Awake()
         {
-            if (objectRecognition == null)
-                objectRecognition = FindFirstObjectByType<SimulatedObjectRecognitionProvider>();
+            if (objectRecognition == null) objectRecognition = FindFirstObjectByType<SimulatedObjectRecognitionProvider>();
+            if (personRecognition == null) personRecognition = FindFirstObjectByType<SimulatedPersonRecognitionProvider>();
         }
 
         private void Update()
         {
-            var target = objectRecognition.CurrentTarget;
-            var targetRenderer = target != null ? target.GetComponentInChildren<Renderer>() : null;
+            GameObject root = null;
+            var progress = 0f;
 
-            if (targetRenderer != highlightedRenderer)
+            if (objectRecognition != null && objectRecognition.CurrentTarget != null)
             {
-                RestoreOriginal();
-                highlightedRenderer = targetRenderer;
-                if (highlightedRenderer != null) originalColor = highlightedRenderer.material.color;
+                root = objectRecognition.CurrentTarget.gameObject;
+                progress = objectRecognition.GazeProgress01;
+            }
+            else if (personRecognition != null && personRecognition.CurrentTarget != null)
+            {
+                root = personRecognition.CurrentTarget.gameObject;
+                progress = personRecognition.GazeProgress01;
             }
 
-            if (highlightedRenderer != null)
-                highlightedRenderer.material.color = Color.Lerp(originalColor, highlightColor, objectRecognition.GazeProgress01);
+            if (root != highlightedRoot)
+            {
+                Restore();
+                highlightedRoot = root;
+                highlighted = root != null ? root.GetComponentsInChildren<Renderer>() : new Renderer[0];
+                originals = new Color[highlighted.Length];
+                for (var i = 0; i < highlighted.Length; i++) originals[i] = highlighted[i].material.color;
+            }
+
+            for (var i = 0; i < highlighted.Length; i++)
+                highlighted[i].material.color = Color.Lerp(originals[i], originals[i] * highlightTint * 1.35f, progress);
         }
 
-        private void RestoreOriginal()
+        private void Restore()
         {
-            if (highlightedRenderer != null) highlightedRenderer.material.color = originalColor;
+            for (var i = 0; i < highlighted.Length; i++)
+                if (highlighted[i] != null) highlighted[i].material.color = originals[i];
         }
 
-        private void OnDisable() => RestoreOriginal();
+        private void OnDisable() => Restore();
     }
 }

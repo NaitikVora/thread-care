@@ -5,9 +5,9 @@ using UnityEngine.UI;
 namespace RecallAR.Reward
 {
     /// <summary>
-    /// Shows the "+N points" feedback when a quest completes and grows the
-    /// Memory Garden. No leaderboards, no losing points, no streaks — see
-    /// spec section 8.
+    /// "+N" feedback and a gently growing total when a quest completes, plus
+    /// one new flower in the Memory Garden. Points only ever go up — no
+    /// leaderboards, no streaks, no losing points (spec section 8).
     /// </summary>
     public class RewardController : MonoBehaviour
     {
@@ -15,7 +15,10 @@ namespace RecallAR.Reward
         [SerializeField] private MemoryGardenController memoryGarden;
         [SerializeField] private GameObject pointsPanel;
         [SerializeField] private Text pointsText;
-        [SerializeField] private float pointsPanelDuration = 2.5f;
+        [SerializeField] private Text totalText;
+        [SerializeField] private float pointsPanelDuration = 3f;
+
+        public int TotalPoints { get; private set; }
 
         private float hideAt = -1f;
 
@@ -23,6 +26,7 @@ namespace RecallAR.Reward
         {
             questManager.QuestCompleted += HandleQuestCompleted;
             if (pointsPanel != null) pointsPanel.SetActive(false);
+            RefreshTotal();
         }
 
         private void Update()
@@ -34,14 +38,21 @@ namespace RecallAR.Reward
             }
         }
 
-        private void HandleQuestCompleted(ObjectQuest quest)
+        private void HandleQuestCompleted(QuestDefinition quest)
         {
-            var points = quest.targetObject.rewardPoints;
+            var points = quest.rewardPoints;
+            TotalPoints += points;
             pointsText.text = "+" + points;
             pointsPanel.SetActive(true);
             hideAt = Time.time + pointsPanelDuration;
+            RefreshTotal();
 
             memoryGarden.GrowOne();
+        }
+
+        private void RefreshTotal()
+        {
+            if (totalText != null) totalText.text = TotalPoints + " points";
         }
     }
 }

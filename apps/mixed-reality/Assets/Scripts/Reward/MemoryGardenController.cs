@@ -19,6 +19,8 @@ namespace RecallAR.Reward
         private int flowerCount;
         private float hideAt = -1f;
 
+        public int FlowerCount => flowerCount;
+
         private static readonly Color[] Palette =
         {
             new Color(0.95f, 0.55f, 0.65f),
