@@ -1,0 +1,7 @@
+{
+  "name": "RecallAR.Editor",
+  "rootNamespace": "RecallAR.EditorTools",
+  "references": [ "RecallAR", "UnityEngine.UI" ],
+  "includePlatforms": [ "Editor" ],
+  "autoReferenced": true
+}

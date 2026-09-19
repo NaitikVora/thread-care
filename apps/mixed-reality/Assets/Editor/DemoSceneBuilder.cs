@@ -1,3 +1,4 @@
+using System;
 using RecallAR;
 using RecallAR.Data;
 using RecallAR.Game;
@@ -17,10 +18,16 @@ using UnityEngine.UI;
 namespace RecallAR.EditorTools
 {
     /// <summary>
-    /// Builds the RecallAR_Demo_LivingRoom scene entirely from code, so it can
-    /// be regenerated from the menu or verified headlessly:
+    /// Builds the RecallAR demo living-room scene entirely from code, so it
+    /// can be regenerated from the menu or verified headlessly:
     ///   Unity -batchmode -nographics -quit
     ///     -executeMethod RecallAR.EditorTools.DemoSceneBuilder.BuildAndSaveFromCommandLine
+    ///
+    /// The room, quests, memory game and rewards are shared between the
+    /// desktop scene (mouse-look player, screen-overlay HUD) and the Meta XR
+    /// scene (OVRCameraRig, head-locked world-space HUD); the variant is
+    /// chosen by the <see cref="PlayerRigFactory"/> passed to
+    /// <see cref="BuildAndSave"/>. See MetaXRDemoSceneBuilder for the XR one.
     ///
     /// Placement is measurement-based, not guessed: every Kenney model is
     /// positioned by its actual renderer bounds (see ModelMeasurer), scaled
@@ -30,12 +37,24 @@ namespace RecallAR.EditorTools
     /// </summary>
     public static class DemoSceneBuilder
     {
-        private const string ScenePath = "Assets/Scenes/RecallAR_Demo_LivingRoom.unity";
+        public const string ScenePath = "Assets/Scenes/RecallAR_Demo_LivingRoom.unity";
         private const string ModelsRoot = "Assets/Art/Kenney";
+
+        /// <summary>What a player-rig factory hands back: the root to attach
+        /// gaze providers to, the camera gaze is cast from, and where a
+        /// head-locked HUD should be parented.</summary>
+        public sealed class PlayerRig
+        {
+            public GameObject root;
+            public Camera camera;
+            public Transform hudParent;
+        }
+
+        public delegate PlayerRig PlayerRigFactory(Vector3 spawnPosition);
 
         // Kenney furniture kit → metres.
         private const float S = 0.22f;
-        // Blocky Characters kit is 2.7 units tall; this makes Sarah ~1.62 m.
+        // Blocky Characters kit is 2.7 units tall; this makes people ~1.62 m.
         private const float CharacterScale = 0.6f;
 
         // Room: 4 × 3 floor tiles of 2.2 m.
@@ -45,23 +64,20 @@ namespace RecallAR.EditorTools
         private const float WallHeight = 12.895f * S;
         private static float InnerX => RoomHalfX - WallThickness * 0.5f;
         private static float InnerZ => RoomHalfZ - WallThickness * 0.5f;
+        private static readonly Vector3 Spawn = new Vector3(0f, 0.05f, -2.4f);
+
+        private const string DesktopLegend = "Mouse to look  •  W A S D to walk  •  H for a hint  •  Esc frees the cursor";
 
         [MenuItem("RecallAR/Build Demo Living Room Scene")]
         public static void BuildFromMenu()
         {
-            Build();
-
-            if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
-                AssetDatabase.CreateFolder("Assets", "Scenes");
-
-            var saved = EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), ScenePath);
-            if (saved) Debug.Log("RecallAR demo scene built and saved to " + ScenePath);
-            else Debug.LogError("RecallAR demo scene build FAILED to save to " + ScenePath);
+            BuildAndSave(ScenePath, CreateDesktopRig, worldSpaceHud: false, hudShader: null, legend: DesktopLegend);
         }
 
         public static void BuildAndSaveFromCommandLine() => BuildFromMenu();
 
-        private static void Build()
+        /// <summary>Builds the whole demo scene around the given player rig and saves it.</summary>
+        public static void BuildAndSave(string scenePath, PlayerRigFactory rigFactory, bool worldSpaceHud, Shader hudShader, string legend)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -74,10 +90,24 @@ namespace RecallAR.EditorTools
             var sarah = BuildSarah();
             var corner = BuildMemoryCorner();
             var gardenArea = BuildGardenArea();
-            BuildPlayer(out var player, out var gazeCam, out var personProvider, out var objectProvider);
-            BuildHud(player, mug, glasses, sarah, corner, gardenArea, objectProvider, personProvider);
+
+            var rig = rigFactory(Spawn);
+            if (rig == null || rig.root == null || rig.camera == null)
+            {
+                Debug.LogError("DemoSceneBuilder: player rig factory returned nothing usable; aborting build.");
+                return;
+            }
+            AttachGaze(rig, out var personProvider, out var objectProvider);
+            BuildHud(rig, worldSpaceHud, hudShader, legend, mug, glasses, sarah, corner, gardenArea, objectProvider, personProvider);
 
             EditorSceneManager.MarkSceneDirty(scene);
+
+            if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+                AssetDatabase.CreateFolder("Assets", "Scenes");
+
+            var saved = EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), scenePath);
+            if (saved) Debug.Log("RecallAR demo scene built and saved to " + scenePath);
+            else Debug.LogError("RecallAR demo scene build FAILED to save to " + scenePath);
         }
 
         // ------------------------------------------------------------------
@@ -143,7 +173,7 @@ namespace RecallAR.EditorTools
             var ceiling = CreateBlock(shell, "Ceiling", PrimitiveType.Cube,
                 new Vector3(0f, WallHeight + 0.05f, 0f), new Vector3(RoomHalfX * 2f + 0.3f, 0.1f, RoomHalfZ * 2f + 0.3f),
                 new Color(0.96f, 0.95f, 0.92f));
-            Object.DestroyImmediate(ceiling.GetComponent<Collider>());
+            UnityEngine.Object.DestroyImmediate(ceiling.GetComponent<Collider>());
 
             Place(shell, "lampSquareCeiling", 0f, 0.3f, 0f, S, floorY: WallHeight - 2.3f * S, addCollider: false);
 
@@ -160,7 +190,6 @@ namespace RecallAR.EditorTools
         private static void BuildKitchen(out RecallARObject mug)
         {
             var kitchen = new GameObject("Kitchen").transform;
-            const float counterW = 4.3f * S;               // 0.946
             const float counterD = 4.5f * S;               // 0.99
             var counterZ = InnerZ - counterD * 0.5f;
             var xs = new[] { -3.87f, -2.93f, -1.98f, -1.04f, -0.09f };
@@ -190,10 +219,10 @@ namespace RecallAR.EditorTools
 
             var body = CreateBlock(root.transform, "Body", PrimitiveType.Cylinder,
                 basePosition + new Vector3(0f, 0.05f, 0f), new Vector3(0.09f, 0.05f, 0.09f), new Color(0.25f, 0.42f, 0.65f));
-            Object.DestroyImmediate(body.GetComponent<Collider>());
+            UnityEngine.Object.DestroyImmediate(body.GetComponent<Collider>());
             var handle = CreateBlock(root.transform, "Handle", PrimitiveType.Cube,
                 basePosition + new Vector3(0.06f, 0.05f, 0f), new Vector3(0.025f, 0.06f, 0.02f), new Color(0.25f, 0.42f, 0.65f));
-            Object.DestroyImmediate(handle.GetComponent<Collider>());
+            UnityEngine.Object.DestroyImmediate(handle.GetComponent<Collider>());
 
             var collider = root.AddComponent<BoxCollider>();
             collider.center = new Vector3(0.02f, 0.05f, 0f);
@@ -269,11 +298,11 @@ namespace RecallAR.EditorTools
             {
                 var lens = CreateBlock(root.transform, "Lens", PrimitiveType.Cube,
                     basePosition + new Vector3(dx, 0.005f, 0f), new Vector3(0.07f, 0.01f, 0.05f), dark);
-                Object.DestroyImmediate(lens.GetComponent<Collider>());
+                UnityEngine.Object.DestroyImmediate(lens.GetComponent<Collider>());
             }
             var bridge = CreateBlock(root.transform, "Bridge", PrimitiveType.Cube,
                 basePosition + new Vector3(0f, 0.006f, 0f), new Vector3(0.03f, 0.008f, 0.012f), dark);
-            Object.DestroyImmediate(bridge.GetComponent<Collider>());
+            UnityEngine.Object.DestroyImmediate(bridge.GetComponent<Collider>());
 
             var collider = root.AddComponent<BoxCollider>();
             collider.center = new Vector3(0f, 0.02f, 0f);
@@ -304,6 +333,7 @@ namespace RecallAR.EditorTools
             sarah.relationship = "Your daughter";
             sarah.shortDescription = "Sarah lives in Boston and loves hiking with you.";
             sarah.associatedMemory = "You and Sarah visited Boston together. That's where you found your blue mug.";
+            sarah.identifyingHint = "Sarah is wearing a purple top.";
             sarah.recognitionDelay = 1.5f;
             return sarah;
         }
@@ -319,7 +349,7 @@ namespace RecallAR.EditorTools
 
             var mat = CreateBlock(corner, "Memory Game Mat", PrimitiveType.Cube,
                 new Vector3(2.2f, 0.015f, -1.55f), new Vector3(1.4f, 0.03f, 1.0f), new Color(0.5f, 0.62f, 0.8f));
-            Object.DestroyImmediate(mat.GetComponent<Collider>());
+            UnityEngine.Object.DestroyImmediate(mat.GetComponent<Collider>());
 
             var sign = new GameObject("Memory Corner Sign");
             sign.transform.SetParent(corner, false);
@@ -373,7 +403,7 @@ namespace RecallAR.EditorTools
         {
             var bed = CreateBlock(null, "Memory Garden Bed", PrimitiveType.Cube,
                 new Vector3(2.3f, 0.02f, 2.55f), new Vector3(1.1f, 0.04f, 1.0f), new Color(0.36f, 0.27f, 0.2f));
-            Object.DestroyImmediate(bed.GetComponent<Collider>());
+            UnityEngine.Object.DestroyImmediate(bed.GetComponent<Collider>());
 
             var anchor = new GameObject("Memory Garden Area").transform;
             anchor.position = new Vector3(1.9f, 0.04f, 2.25f);
@@ -381,14 +411,14 @@ namespace RecallAR.EditorTools
         }
 
         // ------------------------------------------------------------------
-        // Player: grounded first-person controller with an eye-height camera.
+        // Player rigs
 
-        private static void BuildPlayer(out GameObject player, out Camera camera,
-            out SimulatedPersonRecognitionProvider personProvider, out SimulatedObjectRecognitionProvider objectProvider)
+        /// <summary>Desktop stand-in: grounded first-person controller with an eye-height camera.</summary>
+        private static PlayerRig CreateDesktopRig(Vector3 spawn)
         {
-            player = new GameObject("Player");
+            var player = new GameObject("Player");
             player.layer = 2; // Ignore Raycast, so the gaze cast never hits the player's own capsule.
-            player.transform.position = new Vector3(0f, 0.05f, -2.4f);
+            player.transform.position = spawn;
 
             var controller = player.AddComponent<CharacterController>();
             controller.height = 1.75f;
@@ -404,7 +434,7 @@ namespace RecallAR.EditorTools
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
             camGo.transform.SetParent(pivot, false);
-            camera = camGo.AddComponent<Camera>();
+            var camera = camGo.AddComponent<Camera>();
             camera.nearClipPlane = 0.05f;
             camera.fieldOfView = 65f;
             camera.clearFlags = CameraClearFlags.Skybox;
@@ -413,41 +443,67 @@ namespace RecallAR.EditorTools
             var fps = player.AddComponent<FirstPersonController>();
             SetField(fps, "cameraPivot", pivot);
 
-            var gaze = player.AddComponent<GazeRecognitionController>();
-            SetField(gaze, "gazeCamera", camera);
-            personProvider = player.AddComponent<SimulatedPersonRecognitionProvider>();
-            objectProvider = player.AddComponent<SimulatedObjectRecognitionProvider>();
+            return new PlayerRig { root = player, camera = camera, hudParent = camGo.transform };
+        }
+
+        private static void AttachGaze(PlayerRig rig,
+            out SimulatedPersonRecognitionProvider personProvider, out SimulatedObjectRecognitionProvider objectProvider)
+        {
+            var gaze = rig.root.AddComponent<GazeRecognitionController>();
+            SetField(gaze, "gazeCamera", rig.camera);
+            personProvider = rig.root.AddComponent<SimulatedPersonRecognitionProvider>();
+            objectProvider = rig.root.AddComponent<SimulatedObjectRecognitionProvider>();
         }
 
         // ------------------------------------------------------------------
         // HUD + managers
 
-        private static void BuildHud(GameObject player, RecallARObject mug, RecallARObject glasses, RecognizablePerson sarah,
+        private static void BuildHud(PlayerRig rig, bool worldSpaceHud, Shader hudShader, string legend,
+            RecallARObject mug, RecallARObject glasses, RecognizablePerson sarah,
             (Transform zone, GameObject sign, RecognizablePerson[] people) corner, Transform gardenArea,
             SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
         {
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
-            BuildReticle(objectProvider, personProvider);
 
-            // Screen-space overlay: can't be cut off by walls the way a panel
-            // floating in front of the camera can. (A headset build would move
-            // these panels to world space, anchored near their subjects.)
             var canvasGo = new GameObject("HUD Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 10;
-            var scaler = canvasGo.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1000, 600);
-            scaler.matchWidthOrHeight = 0.5f;
             var canvasRect = canvasGo.GetComponent<RectTransform>();
+            if (worldSpaceHud)
+            {
+                // Head-locked panel in front of the eyes (headset builds can't
+                // show screen-space UI). Drawn with a depth-ignoring shader so
+                // walls never cut through it.
+                canvas.renderMode = RenderMode.WorldSpace;
+                canvas.worldCamera = rig.camera;
+                canvas.sortingOrder = 10;
+                canvasRect.sizeDelta = new Vector2(1000, 600);
+                canvasGo.transform.SetParent(rig.hudParent, false);
+                canvasGo.transform.localPosition = new Vector3(0f, -0.05f, 1.3f);
+                canvasGo.transform.localRotation = Quaternion.identity;
+                canvasGo.transform.localScale = Vector3.one * 0.0012f;
+            }
+            else
+            {
+                // Screen-space overlay: can't be cut off by walls the way a
+                // panel floating in front of the camera can.
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = 10;
+                var scaler = canvasGo.GetComponent<CanvasScaler>();
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1000, 600);
+                scaler.matchWidthOrHeight = 0.5f;
+            }
+
+            var reticle = worldSpaceHud
+                ? BuildReticle(canvasRect, 100, objectProvider, personProvider)
+                : BuildOverlayReticle(objectProvider, personProvider);
 
             // Memory game timer (top-left), hidden until the game runs.
             var timerPanel = CreatePanel(canvasRect, "Timer Panel", Anchor.TopLeft, new Vector2(20, -20), new Vector2(230, 50));
             var timerText = CreateText(timerPanel, "Timer Text", "Game time 0:00", 20, TextAnchor.MiddleCenter, Anchor.MiddleCenter, Vector2.zero, new Vector2(210, 40), Color.white);
 
-            CreateText(canvasRect, "Controls Legend", "Mouse to look  •  W A S D to walk  •  H for a hint  •  Esc frees the cursor",
-                16, TextAnchor.LowerCenter, Anchor.BottomCenter, new Vector2(0, 16), new Vector2(800, 30), new Color(0.55f, 0.55f, 0.55f));
+            CreateText(canvasRect, "Controls Legend", legend,
+                16, TextAnchor.LowerCenter, Anchor.BottomCenter, new Vector2(0, 16), new Vector2(900, 30), new Color(0.55f, 0.55f, 0.55f));
 
             // Instruction (top) with a small progress line under it.
             var instructionPanel = CreatePanel(canvasRect, "Instruction Panel", Anchor.TopCenter, new Vector2(0, -20), new Vector2(820, 120));
@@ -482,6 +538,12 @@ namespace RecallAR.EditorTools
             // Garden message (bottom-left).
             var gardenMsgPanel = CreatePanel(canvasRect, "Garden Message Panel", Anchor.BottomLeft, new Vector2(20, 150), new Vector2(360, 70));
             var gardenMsgText = CreateText(gardenMsgPanel, "Garden Message Text", "You grew a new flower today.", 20, TextAnchor.MiddleCenter, Anchor.MiddleCenter, Vector2.zero, new Vector2(340, 60), new Color(0.6f, 0.9f, 0.6f));
+
+            if (worldSpaceHud && hudShader != null)
+            {
+                var material = new Material(hudShader) { name = "HUD Overlay" };
+                foreach (var graphic in canvasRect.GetComponentsInChildren<Graphic>(true)) graphic.material = material;
+            }
 
             // --- Managers ---
             var managers = new GameObject("Managers");
@@ -538,7 +600,7 @@ namespace RecallAR.EditorTools
             SetField(rewardController, "totalText", totalText);
 
             var memoryGame = managers.AddComponent<MemoryGameController>();
-            SetField(memoryGame, "player", player.transform);
+            SetField(memoryGame, "player", rig.camera.transform);
             SetField(memoryGame, "zoneCenter", corner.zone);
             SetObjectArray(memoryGame, "people", corner.people);
             SetField(memoryGame, "personRecognition", personProvider);
@@ -558,15 +620,22 @@ namespace RecallAR.EditorTools
             SetField(demoManager, "progressText", progressText);
         }
 
-        private static void BuildReticle(SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
+        /// <summary>Reticle on a separate always-on-top overlay canvas (desktop).</summary>
+        private static ReticleController BuildOverlayReticle(SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
         {
             var overlayGo = new GameObject("Reticle Canvas", typeof(Canvas), typeof(CanvasScaler));
             var overlayCanvas = overlayGo.GetComponent<Canvas>();
             overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             overlayCanvas.sortingOrder = 100;
+            return BuildReticle(overlayGo.GetComponent<RectTransform>(), 0, objectProvider, personProvider);
+        }
 
+        /// <summary>Reticle dot centred in the given canvas (used directly on the head-locked HUD in XR).</summary>
+        private static ReticleController BuildReticle(RectTransform parent, int unused,
+            SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
+        {
             var dotGo = new GameObject("Reticle", typeof(Image));
-            dotGo.transform.SetParent(overlayGo.transform, false);
+            dotGo.transform.SetParent(parent, false);
             var dotRect = dotGo.GetComponent<RectTransform>();
             dotRect.anchorMin = dotRect.anchorMax = new Vector2(0.5f, 0.5f);
             dotRect.pivot = new Vector2(0.5f, 0.5f);
@@ -574,12 +643,14 @@ namespace RecallAR.EditorTools
             dotRect.sizeDelta = new Vector2(14, 14);
             var dotImage = dotGo.GetComponent<Image>();
             dotImage.color = new Color(1f, 1f, 1f, 0.7f);
+            dotImage.raycastTarget = false;
 
-            var reticle = overlayGo.AddComponent<ReticleController>();
+            var reticle = parent.gameObject.AddComponent<ReticleController>();
             SetField(reticle, "reticleRect", dotRect);
             SetField(reticle, "reticleImage", dotImage);
             SetField(reticle, "objectRecognition", objectProvider);
             SetField(reticle, "personRecognition", personProvider);
+            return reticle;
         }
 
         // ------------------------------------------------------------------
@@ -608,7 +679,7 @@ namespace RecallAR.EditorTools
                 return new Placed(null, new Bounds());
             }
 
-            var go = (GameObject)Object.Instantiate(asset);
+            var go = (GameObject)UnityEngine.Object.Instantiate(asset);
             go.name = modelName;
             if (parent != null) go.transform.SetParent(parent, false);
             go.transform.position = Vector3.zero;
@@ -732,7 +803,7 @@ namespace RecallAR.EditorTools
 
         /// <summary>Assigns a private [SerializeField] via SerializedObject, since this
         /// script wires everything at build time rather than in the inspector.</summary>
-        private static void SetField(Object target, string fieldName, Object value)
+        private static void SetField(UnityEngine.Object target, string fieldName, UnityEngine.Object value)
         {
             var so = new SerializedObject(target);
             var prop = so.FindProperty(fieldName);
@@ -745,7 +816,7 @@ namespace RecallAR.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetObjectArray(Object target, string fieldName, Object[] values)
+        private static void SetObjectArray(UnityEngine.Object target, string fieldName, UnityEngine.Object[] values)
         {
             var so = new SerializedObject(target);
             var prop = so.FindProperty(fieldName);

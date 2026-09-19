@@ -1,0 +1,6 @@
+{
+  "name": "RecallAR",
+  "rootNamespace": "RecallAR",
+  "references": [ "UnityEngine.UI" ],
+  "autoReferenced": true
+}

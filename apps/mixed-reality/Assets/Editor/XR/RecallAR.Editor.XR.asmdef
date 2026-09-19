@@ -1,0 +1,12 @@
+{
+  "name": "RecallAR.Editor.XR",
+  "rootNamespace": "RecallAR.EditorTools.XR",
+  "references": [ "RecallAR", "RecallAR.Editor", "UnityEngine.UI", "Oculus.VR", "Unity.XR.Management", "Unity.XR.Management.Editor", "Unity.XR.OpenXR", "Unity.XR.OpenXR.Editor" ],
+  "includePlatforms": [ "Editor" ],
+  "autoReferenced": true,
+  "defineConstraints": [ "RECALLAR_META_XR", "RECALLAR_OPENXR" ],
+  "versionDefines": [
+    { "name": "com.meta.xr.sdk.core", "expression": "", "define": "RECALLAR_META_XR" },
+    { "name": "com.unity.xr.openxr", "expression": "", "define": "RECALLAR_OPENXR" }
+  ]
+}
