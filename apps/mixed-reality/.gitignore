@@ -1,0 +1,37 @@
+# Unity generated folders — regenerated on open, never commit
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+
+# Generated IDE/solution files — Unity regenerates these from Assets/Packages
+.vs/
+.vscode/
+*.csproj
+*.sln
+*.slnx
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# OS/editor cruft
+.DS_Store
+*.swp
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.unitypackage
+
+# Crash/diagnostic reports
+sysinfo.txt
+crashlytics-build.txt
