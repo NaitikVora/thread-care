@@ -1,3 +1,4 @@
+import { registerRecognition } from "./recognition-routes";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
@@ -76,6 +77,7 @@ export async function registerDiary(
   const { db, storage, diary } = deps,
     controllers = new Map<string, { session: string; ctrl: AbortController }>();
   await diary.init();
+  await registerRecognition(app, db);
   app.get("/api/v1/diary/sessions", () => diary.sessions());
   app.post("/api/v1/diary/sessions", async (req) => {
     const b = StartSession.parse(req.body);
@@ -408,6 +410,11 @@ export async function registerDiary(
         ])
       ).rows[0];
       if (!old) throw new HttpError(404, "Moment not found.");
+      if (old.details?.metric === "recognition")
+        throw new HttpError(
+          400,
+          "Delete an incorrect recognition entry and log its replacement using Log recognition.",
+        );
       if (old.revision !== b.revision || old.status !== "ready")
         throw new HttpError(
           409,

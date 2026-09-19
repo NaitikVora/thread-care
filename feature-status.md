@@ -72,3 +72,7 @@ Fullscreen change: TypeScript and production build pass, with 26 targeted tests 
 - Retrieval is lexical; source cards show records supplied to an answer, not guaranteed model attribution.
 - Agent-run retention is independent of rolling conversation/domain history; deleting a note does not erase earlier quoted conversation text. Clear the workspace to remove all local records.
 - This is a working MVP, not evidence of clinical effectiveness or suitability for unsupervised care.
+
+## Recognition tracker addition
+
+Day diary now has daily counts and a seven-day chart backed by persisted, explicitly logged recognition observations. Latest observation per person per local day wins; existing encounter confirmations are excluded. A targeted integration test covers replay/conflict handling, deduplication, local dates, missing profiles, invalid outcomes, expiry and deletion. TypeScript and production build pass. No face recognition or clinical scoring is performed.

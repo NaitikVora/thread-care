@@ -1,3 +1,4 @@
+import { RecognitionTracker } from "./RecognitionTracker";
 import { useEffect, useState } from "react";
 import {
   BookOpen,
@@ -30,6 +31,7 @@ const today = () => {
   );
 };
 export function Diary({ notify }: { notify: (s: string) => void }) {
+  const [trackerVersion, setTrackerVersion] = useState(0);
   const [day, setDay] = useState(today()),
     [query, setQuery] = useState(""),
     [events, setEvents] = useState<DiaryEvent[]>([]),
@@ -57,6 +59,7 @@ export function Diary({ notify }: { notify: (s: string) => void }) {
       setEvents(data.events);
       setSessions(data.sessions);
       setSummary(null);
+      setTrackerVersion((v) => v + 1);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -149,6 +152,11 @@ export function Diary({ notify }: { notify: (s: string) => void }) {
           {error}
         </p>
       )}
+      <RecognitionTracker
+        day={day}
+        version={trackerVersion}
+        onSaved={() => load()}
+      />
       <div className="diary-stats">
         <article>
           <span className="stat-icon">
@@ -272,16 +280,18 @@ export function Diary({ notify }: { notify: (s: string) => void }) {
                   · retained until {stamp(e.expiresAt)}
                 </small>
                 <div className="button-row">
-                  <button
-                    className="text-button"
-                    onClick={() => {
-                      setReview(e);
-                      setHistory(null);
-                    }}
-                  >
-                    <Pencil size={14} />
-                    Review or correct
-                  </button>
+                  {e.details.metric !== "recognition" && (
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setReview(e);
+                        setHistory(null);
+                      }}
+                    >
+                      <Pencil size={14} />
+                      Review or correct
+                    </button>
+                  )}
                   <button
                     className="text-button"
                     onClick={async () => {

@@ -996,3 +996,125 @@ test("fullscreen voice opt-in preserves session retention and requires explicit 
   await f.send("/api/v1/diary/sessions/" + s.id, { operation: "end" });
   assert.equal((await f.send(path, { consent: true })).statusCode, 409);
 });
+
+test("recognition tracker counts latest distinct people, excludes encounters, and respects timezone, deletion and expiry", async (t) => {
+  const f = await setup(t);
+  const p = (
+    await f.send("/api/v1/people", {
+      name: "Test relative",
+      relationship: "Family",
+      description: "",
+      author: "Test caregiver",
+      consent: true,
+    })
+  ).json();
+  const day = new Date().toISOString().slice(0, 10);
+  const base = {
+    id: randomUUID(),
+    personId: p.id,
+    outcome: "independent",
+    observedBy: "caregiver",
+    capturedAt: new Date(Date.now() - 120000).toISOString(),
+  };
+  const metrics = async (zone = "UTC") =>
+    (
+      await f.send(
+        `/api/v1/diary/recognition?day=${day}&timezone=${encodeURIComponent(zone)}`,
+      )
+    ).json();
+  assert.equal((await metrics()).days.at(-1).observations, 0);
+  const session = await f.start();
+  await f.send("/api/v1/diary/person", {
+    id: randomUUID(),
+    sessionId: session.id,
+    personId: p.id,
+    confirmed: true,
+  });
+  assert.equal(
+    (await metrics()).days.at(-1).observations,
+    0,
+    "presence is not recognition",
+  );
+  assert.equal(
+    (await f.send("/api/v1/diary/recognition", base)).statusCode,
+    200,
+  );
+  assert.equal(
+    (await f.send("/api/v1/diary/recognition", base)).statusCode,
+    200,
+  );
+  assert.equal((await metrics()).days.at(-1).independent, 1);
+  assert.equal(
+    (await f.send("/api/v1/diary/recognition", { ...base, outcome: "cued" }))
+      .statusCode,
+    409,
+  );
+  const newer = {
+    ...base,
+    id: randomUUID(),
+    outcome: "cued",
+    capturedAt: new Date(Date.now() - 60000).toISOString(),
+  };
+  assert.equal(
+    (await f.send("/api/v1/diary/recognition", newer)).statusCode,
+    200,
+  );
+  assert.deepEqual((await metrics()).days.at(-1), {
+    day,
+    observations: 1,
+    independent: 0,
+    cued: 1,
+    introduction: 0,
+  });
+  assert.equal((await metrics()).days.length, 7);
+  await f.send(`/api/v1/diary/${newer.id}/delete`, {});
+  assert.equal((await metrics()).days.at(-1).independent, 1);
+  await f.db.query(
+    "UPDATE diary_events SET expires_at=now()-interval '1 second' WHERE id=$1",
+    [base.id],
+  );
+  assert.equal((await metrics()).days.at(-1).observations, 0);
+  const utcTime = day + "T00:30:00Z";
+  await f.db.query(
+    "UPDATE diary_events SET expires_at=now()+interval '1 day',captured_at=$2 WHERE id=$1",
+    [base.id, utcTime],
+  );
+  const local = (await metrics("America/New_York")).days;
+  assert.equal(local.at(-1).observations, 0);
+  assert.equal(local.at(-2).independent, 1);
+  assert.equal(
+    (await f.send(`/api/v1/diary/recognition?day=${day}&timezone=Invalid`))
+      .statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await f.send("/api/v1/diary/recognition", {
+        ...base,
+        id: randomUUID(),
+        personId: randomUUID(),
+      })
+    ).statusCode,
+    404,
+  );
+  assert.equal(
+    (
+      await f.send("/api/v1/diary/recognition", {
+        ...base,
+        id: randomUUID(),
+        outcome: "guessed",
+      })
+    ).statusCode,
+    400,
+  );
+  assert.equal(
+    (
+      await f.send("/api/v1/diary/recognition", {
+        ...base,
+        id: randomUUID(),
+        capturedAt: new Date(Date.now() + 86400000).toISOString(),
+      })
+    ).statusCode,
+    400,
+  );
+});

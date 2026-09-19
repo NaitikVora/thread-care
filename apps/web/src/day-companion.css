@@ -1027,3 +1027,118 @@
     gap: 8px;
   }
 }
+
+.recognition-card {
+  margin: 20px 0;
+  padding: 24px;
+}
+.recognition-summary {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0 16px;
+}
+.recognition-summary > div {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #f3f5ef;
+}
+.recognition-summary strong {
+  font-size: 36px;
+  color: #24583f;
+}
+.recognition-summary span {
+  font-size: 14px;
+}
+.recognition-summary .recognition-total {
+  background: #e4efdf;
+}
+.recognition-encouragement {
+  color: #315940;
+}
+.recognition-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.recognition-chart > div {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.recognition-chart small {
+  font-size: 12px;
+  text-align: center;
+}
+.recognition-chart-value {
+  font-weight: 700;
+}
+.recognition-bar {
+  height: 110px;
+  width: min(100%, 44px);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  border-bottom: 1px solid #d2dbd1;
+}
+.recognition-bar > div {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-radius: 7px 7px 0 0;
+  overflow: hidden;
+}
+.recognition-bar span {
+  display: block;
+}
+.recognition-independent {
+  background: #377753;
+}
+.recognition-cued {
+  background: #90b584;
+}
+.recognition-introduction {
+  background: #d8c6a7;
+}
+.recognition-gap {
+  color: #839085;
+  font-size: 24px;
+}
+.recognition-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.recognition-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.recognition-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+@media (max-width: 650px) {
+  .recognition-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .recognition-card {
+    padding: 16px;
+  }
+  .recognition-card > .section-head {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .recognition-chart {
+    gap: 4px;
+  }
+}

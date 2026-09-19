@@ -78,3 +78,8 @@ Local web first. Preserve the original browser prototype, reuse its domain and e
 Multi-household care circles, external notification delivery, held-out model evaluations and optional approved training, native mobile, and official Meta SDK adapters with physical-device tests. Streaming voice and PostgreSQL verification are included in 0.4, with live voice account/device validation still pending.
 
 Earlier scope and verification are preserved in docs/legacy-plan.md.
+
+## Recognition tracker
+- [x] Human-reported recognition logging with saved familiar profiles and patient/caregiver source.
+- [x] Daily unique-person count and seven-day trend, with cue/introduction breakdown and no-data gaps.
+- [x] Persistent diary entries, 30-day retention, idempotent writes, time-zone handling and deletion regression checks.
