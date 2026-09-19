@@ -48,3 +48,7 @@ There are at most two concurrent analyses, one per session, 50 familiar profiles
 ## Familiar-person recognition tracker
 
 The Day diary includes a recognition tracker and seven-day chart ending on the selected day. Log a familiar person, outcome (without a cue, after a cue, or introduction), patient/caregiver source and observation time. The latest retained observation per person per local day counts once; days without observations show a gap. This is human-reported recognition, not automatic face matching or a clinical score. Existing encounters do not count. Logs remain diary entries for 30 days from observation, follow export/deletion, and can be corrected by deleting the mistaken entry and logging a replacement. Diary search filters do not change the tracker.
+
+### Monthly demo view
+
+The recognition tracker opens in **30-day demo** mode until the browser preference is changed. This presentation-only dataset covers the 30 days ending on the selected diary date, with four fictional people per day, gradual gains and daily variation. Weekly average independent recognitions rise from 0.7 to 1.3 to 1.7, then 2.4 across the final nine days. A persistent synthetic-data notice distinguishes this illustrative scenario from actual patient health. **Real diary data** restores the live seven-day tracker and logging controls. No demo values enter the database, diary export, retrieval or voice context.

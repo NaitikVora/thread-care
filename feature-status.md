@@ -19,7 +19,7 @@
 | Meta native SDK | Not implemented or hardware verified | Browser adapter and documented native boundary; not presented as a working Meta integration |
 | Public hosting | Not performed | Only local preview and authorized GitHub source pushes |
 
-Current local verification: **72 application tests passing** (the previous real PostgreSQL integration check also passed), TypeScript check and production build passing. Test fixtures are confined to tests; no runtime AI or glasses response is mocked. The real app is at `http://127.0.0.1:4173`.
+Current local verification: **72 application tests passing** (the previous real PostgreSQL integration check also passed), TypeScript check and production build passing. AI/provider test fixtures are confined to tests; no runtime AI or glasses response is mocked. The recognition chart has a separately labeled, presentation-only 30-day synthetic demo requested for showcasing the dashboard. The real app is at `http://127.0.0.1:4173`.
 
 The connected-encounter backend and PostgreSQL checks passed on [GitHub run 35457287481](https://github.com/NaitikVora/thread-care/actions/runs/35457287481). The real connected ElevenLabs agent accepted the prompt-only update with voice/model/tool IDs preserved. Browser QA verified current-person confirmation, clearing, recovery and basic-mode identity answers against a separate synthetic household.
 
@@ -76,3 +76,5 @@ Fullscreen change: TypeScript and production build pass, with 26 targeted tests 
 ## Recognition tracker addition
 
 Day diary now has daily counts and a seven-day chart backed by persisted, explicitly logged recognition observations. Latest observation per person per local day wins; existing encounter confirmations are excluded. A targeted integration test covers replay/conflict handling, deduplication, local dates, missing profiles, invalid outcomes, expiry and deletion. TypeScript and production build pass. No face recognition or clinical scoring is performed.
+
+Monthly recognition demo: deterministic 30-day presentation data, weekly averages and a persistent demo/real switch. No synthetic records are written to the patient database. Production build and type checking pass.

@@ -1142,3 +1142,70 @@
     gap: 4px;
   }
 }
+
+.recognition-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+.recognition-demo-notice {
+  padding: 16px 18px;
+  background: #fff6df;
+  border: 1px solid #dfcd9f;
+  border-radius: 14px;
+  color: #654c24;
+}
+.recognition-demo-notice strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.recognition-demo-notice p {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.recognition-demo-notice small {
+  font-size: 12px;
+}
+.recognition-chart-scroll {
+  overflow-x: auto;
+}
+.recognition-chart.recognition-month {
+  grid-template-columns: repeat(30, minmax(24px, 1fr));
+  min-width: 1060px;
+  gap: 10px;
+  padding: 0 2px 8px;
+}
+.recognition-month .recognition-bar {
+  height: 150px;
+}
+.recognition-month small {
+  font-size: 10px;
+}
+.recognition-weekly {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+.recognition-weekly > div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  background: #f3f5ef;
+  border-radius: 12px;
+}
+.recognition-weekly strong {
+  font-size: 28px;
+  color: #24583f;
+}
+.recognition-weekly span,
+.recognition-weekly small {
+  font-size: 12px;
+}
+@media (max-width: 650px) {
+  .recognition-weekly {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

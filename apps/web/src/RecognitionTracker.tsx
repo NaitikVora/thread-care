@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { recognitionDemo } from "./recognition-demo";
 import { Heart, Plus } from "lucide-react";
 import { api, timezone } from "./api";
 import { Modal } from "./components";
@@ -25,6 +26,19 @@ export function RecognitionTracker({
   version: number;
   onSaved: () => Promise<void>;
 }) {
+  const [demo, setDemo] = useState(() => {
+    try {
+      return localStorage.getItem("thread-recognition-demo") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  function changeDemo(value: boolean) {
+    setDemo(value);
+    try {
+      localStorage.setItem("thread-recognition-demo", value ? "on" : "off");
+    } catch {}
+  }
   const [days, setDays] = useState<Day[]>([]),
     [people, setPeople] = useState<TrustedPerson[]>([]),
     [open, setOpen] = useState(false),
@@ -54,8 +68,15 @@ export function RecognitionTracker({
       cancelled = true;
     };
   }, [day, version]);
-  const current = days.at(-1),
-    maximum = Math.max(1, ...days.map((d) => d.observations));
+  const displayedDays = demo ? recognitionDemo(day) : days;
+  const current = displayedDays.at(-1),
+    maximum = Math.max(1, ...displayedDays.map((d) => d.observations));
+  const demoWeeks = [
+    displayedDays.slice(0, 7),
+    displayedDays.slice(7, 14),
+    displayedDays.slice(14, 21),
+    displayedDays.slice(21),
+  ];
   return (
     <section
       className="card recognition-card"
@@ -69,16 +90,51 @@ export function RecognitionTracker({
         <button
           className="secondary"
           onClick={() => setOpen(true)}
-          disabled={!people.length}
+          disabled={demo || !people.length}
         >
           <Plus size={17} /> Log recognition
         </button>
       </div>
+      <div
+        className="recognition-mode"
+        role="group"
+        aria-label="Recognition data source"
+      >
+        <button
+          className={demo ? "primary" : "secondary"}
+          aria-pressed={demo}
+          onClick={() => changeDemo(true)}
+        >
+          30-day demo
+        </button>
+        <button
+          className={!demo ? "primary" : "secondary"}
+          aria-pressed={!demo}
+          onClick={() => changeDemo(false)}
+        >
+          Real diary data
+        </button>
+      </div>
+      {demo && (
+        <div className="recognition-demo-notice" role="note">
+          <strong>DEMO · Synthetic data</strong>
+          <p>
+            A fictional month with gradual gains and everyday ups and downs.
+            Four fictional people are observed each day. This illustrates the
+            dashboard, not an expected course of Alzheimer’s or a patient's
+            health progress.
+          </p>
+          <small>
+            Demo values stay out of diary records, exports and voice-agent
+            memory. Switch to Real diary data to log observations.
+          </small>
+        </div>
+      )}
       <p className="fine">
-        Human-reported observations · {day} · {timezone()}. This is not a health
-        or memory test score.
+        {demo ? "Synthetic observations" : "Human-reported observations"} ·{" "}
+        {day} · {timezone()}. This is not a health or memory test score.
       </p>
-      {error && (
+      {!demo && error && (
         <p role="alert" className="error-banner">
           {error}
         </p>
@@ -110,57 +166,91 @@ export function RecognitionTracker({
           : "No observations recorded for this day. There is no target to meet."}
       </p>
       <div className="section-head">
-        <h4>Seven days of connection</h4>
+        <h4>
+          {demo ? "A month of connection · demo" : "Seven days of connection"}
+        </h4>
         <span className="fine">Latest observation per person, each day</span>
       </div>
-      <div
-        className="recognition-chart"
-        role="list"
-        aria-label="Seven-day recognition history"
-      >
-        {days.map((d) => (
-          <div
-            key={d.day}
-            role="listitem"
-            aria-label={`${d.day}: ${d.observations ? `${d.independent} without a cue, ${d.cued} after a cue, ${d.introduction} needed an introduction` : "no observations"}`}
-          >
-            <span className="recognition-chart-value">
-              {d.observations ? d.independent + d.cued : "—"}
-            </span>
-            <div className="recognition-bar" aria-hidden="true">
-              {d.observations ? (
-                <div style={{ height: `${(d.observations / maximum) * 100}%` }}>
-                  {d.introduction > 0 && (
-                    <span
-                      className="recognition-introduction"
-                      style={{ flex: d.introduction }}
-                    />
-                  )}
-                  {d.cued > 0 && (
-                    <span
-                      className="recognition-cued"
-                      style={{ flex: d.cued }}
-                    />
-                  )}
-                  {d.independent > 0 && (
-                    <span
-                      className="recognition-independent"
-                      style={{ flex: d.independent }}
-                    />
-                  )}
-                </div>
-              ) : (
-                <span className="recognition-gap">·</span>
-              )}
+      {demo && (
+        <div className="recognition-weekly" aria-label="Demo weekly averages">
+          {demoWeeks.map((week, i) => (
+            <div key={i}>
+              <small>{i === 3 ? "Days 22–30" : `Week ${i + 1}`}</small>
+              <strong>
+                {(
+                  week.reduce((sum, d) => sum + d.independent, 0) / week.length
+                ).toFixed(1)}
+              </strong>
+              <span>recognized without a cue / day</span>
             </div>
-            <small>
-              {new Date(d.day + "T12:00:00").toLocaleDateString([], {
-                month: "short",
-                day: "numeric",
-              })}
-            </small>
-          </div>
-        ))}
+          ))}
+        </div>
+      )}
+      <div
+        className="recognition-chart-scroll"
+        tabIndex={demo ? 0 : undefined}
+        role="region"
+        aria-label={
+          demo
+            ? "Scroll to explore 30 days of synthetic recognition data"
+            : "Recognition chart"
+        }
+      >
+        <div
+          className={"recognition-chart" + (demo ? " recognition-month" : "")}
+          role="list"
+          aria-label={
+            demo
+              ? "Thirty-day synthetic recognition history"
+              : "Seven-day recognition history"
+          }
+        >
+          {displayedDays.map((d) => (
+            <div
+              key={d.day}
+              role="listitem"
+              aria-label={`${d.day}: ${d.observations ? `${d.independent} without a cue, ${d.cued} after a cue, ${d.introduction} needed an introduction` : "no observations"}`}
+            >
+              <span className="recognition-chart-value">
+                {d.observations ? d.independent + d.cued : "—"}
+              </span>
+              <div className="recognition-bar" aria-hidden="true">
+                {d.observations ? (
+                  <div
+                    style={{ height: `${(d.observations / maximum) * 100}%` }}
+                  >
+                    {d.introduction > 0 && (
+                      <span
+                        className="recognition-introduction"
+                        style={{ flex: d.introduction }}
+                      />
+                    )}
+                    {d.cued > 0 && (
+                      <span
+                        className="recognition-cued"
+                        style={{ flex: d.cued }}
+                      />
+                    )}
+                    {d.independent > 0 && (
+                      <span
+                        className="recognition-independent"
+                        style={{ flex: d.independent }}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <span className="recognition-gap">·</span>
+                )}
+              </div>
+              <small>
+                {new Date(d.day + "T12:00:00").toLocaleDateString([], {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </small>
+            </div>
+          ))}
+        </div>
       </div>
       <div className="recognition-legend">
         <span>
@@ -178,13 +268,13 @@ export function RecognitionTracker({
         <span>— No observations</span>
       </div>
       <p className="fine">
-        Numbers above bars count recognized people. Bar height includes
-        introductions. Repeated logs count each person once per day, using their
-        latest observation. Existing encounter confirmations do not count. Logs
-        are kept for 30 days. Delete an incorrect diary entry and log a
-        replacement to correct it.
+        {demo ? "Demo: counts are fictional. " : ""}Numbers above bars count
+        recognized people. Bar height includes introductions. Repeated logs
+        count each person once per day, using their latest observation. Existing
+        encounter confirmations do not count. Logs are kept for 30 days. Delete
+        an incorrect diary entry and log a replacement to correct it.
       </p>
-      {!people.length && (
+      {!demo && !people.length && (
         <p className="fine">
           Add a person in Familiar people to start logging.
         </p>
