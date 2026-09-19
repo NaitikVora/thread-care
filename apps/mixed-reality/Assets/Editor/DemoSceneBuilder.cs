@@ -84,8 +84,8 @@ namespace RecallAR.EditorTools
             CreateBlock(room, "Left Wall", PrimitiveType.Cube, new Vector3(-8, 2, 0), new Vector3(0.1f, 4, 16), new Color(0.9f, 0.88f, 0.83f));
 
             CreateBlock(room, "Sofa", PrimitiveType.Cube, new Vector3(-4, 0.3f, 3), new Vector3(1.8f, 0.6f, 0.8f), new Color(0.5f, 0.55f, 0.7f));
-            CreateBlock(room, "Table", PrimitiveType.Cube, new Vector3(3, 0.25f, 4), new Vector3(1.2f, 0.5f, 0.7f), new Color(0.45f, 0.32f, 0.22f));
-            CreateBlock(room, "Coffee Machine", PrimitiveType.Cube, new Vector3(3.3f, 0.65f, 3.9f), new Vector3(0.25f, 0.3f, 0.25f), new Color(0.2f, 0.2f, 0.22f));
+            CreateBlock(room, "Table", PrimitiveType.Cube, new Vector3(1.5f, 0.25f, 2.5f), new Vector3(1.2f, 0.5f, 0.7f), new Color(0.45f, 0.32f, 0.22f));
+            CreateBlock(room, "Coffee Machine", PrimitiveType.Cube, new Vector3(1.8f, 0.65f, 2.4f), new Vector3(0.25f, 0.3f, 0.25f), new Color(0.2f, 0.2f, 0.22f));
             CreateBlock(room, "Nightstand", PrimitiveType.Cube, new Vector3(-3, 0.3f, -3), new Vector3(0.5f, 0.6f, 0.5f), new Color(0.45f, 0.32f, 0.22f));
             CreateBlock(room, "Family Photograph", PrimitiveType.Cube, new Vector3(0, 1.5f, 7.5f), new Vector3(0.6f, 0.4f, 0.03f), new Color(0.8f, 0.7f, 0.4f));
         }
@@ -93,7 +93,7 @@ namespace RecallAR.EditorTools
         private static RecallARObject BuildMug()
         {
             var mugGo = CreateBlock(null, "Coffee Mug", PrimitiveType.Cylinder,
-                new Vector3(2.9f, 0.56f, 4.1f), new Vector3(0.1f, 0.06f, 0.1f), new Color(0.25f, 0.4f, 0.6f));
+                new Vector3(1.35f, 0.58f, 2.6f), new Vector3(0.14f, 0.09f, 0.14f), new Color(0.25f, 0.4f, 0.6f));
 
             var mug = mugGo.AddComponent<RecallARObject>();
             mug.objectId = "coffee_mug_01";
@@ -175,6 +175,8 @@ namespace RecallAR.EditorTools
             // EventSystem so UI buttons work if the player frees the cursor
             // (Escape) to click instead of using the keyboard shortcuts.
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+
+            BuildReticle(objectProvider, personProvider);
 
             var canvasGo = new GameObject("HUD Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
@@ -272,6 +274,30 @@ namespace RecallAR.EditorTools
             SetField(demoManager, "memoryCard", memoryCard);
             SetField(demoManager, "instructionPanel", instructionPanel.gameObject);
             SetField(demoManager, "instructionText", instructionText);
+        }
+
+        private static void BuildReticle(SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
+        {
+            var overlayGo = new GameObject("Reticle Canvas", typeof(Canvas), typeof(CanvasScaler));
+            var overlayCanvas = overlayGo.GetComponent<Canvas>();
+            overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            overlayCanvas.sortingOrder = 100;
+
+            var dotGo = new GameObject("Reticle", typeof(Image));
+            dotGo.transform.SetParent(overlayGo.transform, false);
+            var dotRect = dotGo.GetComponent<RectTransform>();
+            dotRect.anchorMin = dotRect.anchorMax = new Vector2(0.5f, 0.5f);
+            dotRect.pivot = new Vector2(0.5f, 0.5f);
+            dotRect.anchoredPosition = Vector2.zero;
+            dotRect.sizeDelta = new Vector2(14, 14);
+            var dotImage = dotGo.GetComponent<Image>();
+            dotImage.color = new Color(1f, 1f, 1f, 0.7f);
+
+            var reticle = overlayGo.AddComponent<ReticleController>();
+            SetField(reticle, "reticleRect", dotRect);
+            SetField(reticle, "reticleImage", dotImage);
+            SetField(reticle, "objectRecognition", objectProvider);
+            SetField(reticle, "personRecognition", personProvider);
         }
 
         // --- Small building-block helpers ---

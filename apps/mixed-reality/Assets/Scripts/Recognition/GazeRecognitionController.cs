@@ -12,7 +12,10 @@ namespace RecallAR.Recognition
     public class GazeRecognitionController : MonoBehaviour
     {
         [SerializeField] private Camera gazeCamera;
-        [SerializeField] private float maxDistance = 15f;
+        [SerializeField] private float maxDistance = 25f;
+
+        [Tooltip("A sphere cast (not a pixel-thin ray) so gazing at a small object doesn't require pixel-perfect aim.")]
+        [SerializeField] private float gazeRadius = 0.2f;
 
         public Camera GazeCamera => gazeCamera;
 
@@ -35,7 +38,7 @@ namespace RecallAR.Recognition
             }
 
             var ray = new Ray(gazeCamera.transform.position, gazeCamera.transform.forward);
-            return Physics.Raycast(ray, out hit, maxDistance);
+            return Physics.SphereCast(ray, gazeRadius, out hit, maxDistance);
         }
     }
 }
