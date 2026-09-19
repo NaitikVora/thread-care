@@ -66,6 +66,26 @@ namespace RecallAR.EditorTools
                 var list = new System.Collections.Generic.List<string>(defines) { define };
                 PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.iOS, list.ToArray());
             }
+
+            // The same gated preprocess step is what registers the camera-feed
+            // shaders as preloaded assets; without them ARCameraBackground throws
+            // "Could not find shader named 'Unlit/ARKitBackground'" and the
+            // camera image never draws. Register them here unconditionally.
+            var preloaded = new System.Collections.Generic.List<Object>(PlayerSettings.GetPreloadedAssets());
+            var changed = false;
+            foreach (var shaderName in new[] { "Unlit/ARKitBackground", "Unlit/ARKitBackground/AfterOpaques" })
+            {
+                var shader = Shader.Find(shaderName);
+                if (shader == null) { Debug.LogWarning($"IOSBuilder: shader {shaderName} not found; camera background may not render."); continue; }
+                if (preloaded.Contains(shader)) continue;
+                preloaded.Add(shader);
+                changed = true;
+            }
+            if (changed)
+            {
+                PlayerSettings.SetPreloadedAssets(preloaded.ToArray());
+                Debug.Log("IOSBuilder: ARKit background shaders added to preloaded assets.");
+            }
         }
 
         private static void Build(string scene, string outputDir)
