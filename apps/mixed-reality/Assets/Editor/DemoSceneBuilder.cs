@@ -52,6 +52,20 @@ namespace RecallAR.EditorTools
 
         public delegate PlayerRig PlayerRigFactory(Vector3 spawnPosition);
 
+        /// <summary>What a build hands back to variant-specific builders (e.g. AR)
+        /// so they can wire extra components without re-finding objects.</summary>
+        public sealed class BuildResult
+        {
+            public PlayerRig rig;
+            public DemoSceneManager demoManager;
+            public GuidePathController guidePath;
+            public GameObject instructionPanel;
+            public Text instructionText;
+            public Text progressText;
+            /// <summary>AR mode only: movable content groups (kitchen, sarah, corner, phone, garden).</summary>
+            public Transform[] contentGroups;
+        }
+
         // Kenney furniture kit → metres.
         private const float S = 0.22f;
         // Blocky Characters kit is 2.7 units tall; this makes people ~1.62 m.
@@ -88,22 +102,38 @@ namespace RecallAR.EditorTools
 
         public static void BuildAndSaveFromCommandLine() => BuildFromMenu();
 
-        /// <summary>Builds the whole demo scene around the given player rig and saves it.</summary>
+        /// <summary>Builds the whole demo scene around the given player rig and saves it.
+        /// In <paramref name="arMode"/> no room is built: the content is laid out in
+        /// movable groups (activated and positioned at runtime by ARDemoPlacer).</summary>
         public static void BuildAndSave(string scenePath, PlayerRigFactory rigFactory, bool worldSpaceHud, Shader hudShader, string legend,
-            string continueHint = "Press Space to continue")
+            string continueHint = "Press Space to continue", bool arMode = false, System.Action<BuildResult> onBuilt = null)
         {
             currentContinueHint = continueHint;
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            BuildLighting();
-            BuildRoomShell();
-            BuildKitchen(out var mug);
-            BuildDining();
-            BuildLiving();
-            BuildBedroomCorner(out var phone);
-            var sarah = BuildSarah();
-            var corner = BuildMemoryCorner();
-            var gardenArea = BuildGardenArea();
+            RecallARObject mug, phone;
+            RecognizablePerson sarah;
+            (Transform zone, GameObject sign, RecognizablePerson[] people) corner;
+            Transform gardenArea;
+            Transform[] groups = null;
+
+            if (arMode)
+            {
+                BuildArLighting();
+                BuildArContent(out mug, out phone, out sarah, out corner, out gardenArea, out groups);
+            }
+            else
+            {
+                BuildLighting();
+                BuildRoomShell();
+                BuildKitchen(out mug);
+                BuildDining();
+                BuildLiving();
+                BuildBedroomCorner(out phone);
+                sarah = BuildSarah();
+                corner = BuildMemoryCorner();
+                gardenArea = BuildGardenArea();
+            }
 
             var rig = rigFactory(Spawn);
             if (rig == null || rig.root == null || rig.camera == null)
@@ -112,7 +142,9 @@ namespace RecallAR.EditorTools
                 return;
             }
             AttachGaze(rig, out var personProvider, out var objectProvider);
-            BuildHud(rig, worldSpaceHud, hudShader, legend, mug, phone, sarah, corner, gardenArea, objectProvider, personProvider);
+            var result = BuildHud(rig, worldSpaceHud, hudShader, legend, mug, phone, sarah, corner, gardenArea, objectProvider, personProvider, arMode);
+            result.contentGroups = groups;
+            onBuilt?.Invoke(result);
 
             EditorSceneManager.MarkSceneDirty(scene);
 
@@ -147,6 +179,115 @@ namespace RecallAR.EditorTools
             AddPointLight("Floor Lamp Light", new Vector3(3.6f, 1.75f, 1.9f), new Color(1f, 0.8f, 0.55f), 1.0f, 4.5f);
             AddPointLight("Window Light", new Vector3(3.6f, 2.0f, -0.2f), new Color(0.85f, 0.9f, 1f), 0.6f, 5f);
             AddPointLight("Kitchen Light", new Vector3(-2.2f, 2.3f, 2.3f), new Color(1f, 0.95f, 0.88f), 0.7f, 5f);
+        }
+
+        /// <summary>AR: the real room provides the light; just a soft key light so the
+        /// virtual objects aren't flat, and neutral ambient.</summary>
+        private static void BuildArLighting()
+        {
+            var sun = new GameObject("Key Light").AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.color = new Color(1f, 0.97f, 0.92f);
+            sun.intensity = 1.0f;
+            sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.5f;
+            sun.transform.rotation = Quaternion.Euler(55f, 30f, 0f);
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.55f, 0.55f, 0.58f);
+        }
+
+        // ------------------------------------------------------------------
+        // AR content: the same props as the room, grouped so ARDemoPlacer can
+        // put each group on the real floor around the person. Each group is
+        // built around its own origin with +Z pointing away from the person.
+
+        private static void BuildArContent(out RecallARObject mug, out RecallARObject phone, out RecognizablePerson sarah,
+            out (Transform zone, GameObject sign, RecognizablePerson[] people) corner, out Transform gardenArea, out Transform[] groups)
+        {
+            var toUser = Quaternion.Euler(0f, 180f, 0f);
+
+            // Kitchen: a small table with the coffee machine, toaster and the mug.
+            var kitchen = new GameObject("AR Kitchen").transform;
+            var table = Place(kitchen, "table", 0f, 0.3f, 0f, S);
+            var top = table.bounds.max.y;
+            Place(kitchen, "kitchenCoffeeMachine", 0.3f, 0.45f, 180f, 0.16f, floorY: top);
+            Place(kitchen, "toaster", -0.55f, 0.4f, 0f, S, floorY: top, addCollider: false);
+            mug = BuildMug(new Vector3(-0.15f, top, 0.05f));
+            mug.transform.SetParent(kitchen, true);
+            mug.hintText = "Try looking at the little table with the coffee machine.";
+
+            // Sarah, facing the person.
+            var sarahGroup = new GameObject("AR Sarah").transform;
+            var placed = Place(sarahGroup, "character-e", 0f, 0f, 180f, CharacterScale);
+            placed.go.name = "Sarah (avatar placeholder)";
+            sarah = placed.go.AddComponent<RecognizablePerson>();
+            sarah.personId = "sarah_01";
+            sarah.displayName = "Sarah";
+            sarah.relationship = "Your daughter";
+            sarah.shortDescription = "Sarah lives in Boston and loves hiking with you.";
+            sarah.associatedMemory = "You and Sarah visited Boston together. That's where you found your blue mug.";
+            sarah.identifyingHint = "Sarah is wearing a purple top.";
+            sarah.recognitionDelay = 1.5f;
+
+            // Memory Corner: a mat for the person, and three portraits on a photo stand.
+            var cornerGroup = new GameObject("AR Memory Corner").transform;
+            var mat = CreateBlock(cornerGroup, "Memory Game Mat", PrimitiveType.Cube,
+                new Vector3(0f, 0.01f, -1.5f), new Vector3(1.2f, 0.02f, 0.9f), new Color(0.5f, 0.62f, 0.8f));
+            UnityEngine.Object.DestroyImmediate(mat.GetComponent<Collider>());
+            var panel = CreateBlock(cornerGroup, "Photo Stand", PrimitiveType.Cube,
+                new Vector3(0f, 1.1f, 0.3f), new Vector3(2.6f, 2.2f, 0.06f), new Color(0.93f, 0.9f, 0.85f));
+            var sign = MakeSign(cornerGroup, "Memory Corner\nstand on the mat, then look at a picture", new Vector3(0f, 2.0f, 0.25f), Quaternion.identity);
+            var people = new[]
+            {
+                MakePortrait(cornerGroup, "character-n", new Vector3(-0.95f, 1.45f, 0.22f), toUser, "susan_01", "Susan", "Your wife",
+                    "Susan has dark hair and wears a green dress.", "Susan and you have been married since 1978.",
+                    "You and Susan still make Sunday breakfast together."),
+                MakePortrait(cornerGroup, "character-c", new Vector3(0f, 1.45f, 0.22f), toUser, "jack_01", "Jack", "Your brother",
+                    "Jack is wearing a green shirt.", "Jack is your brother.",
+                    "You and Jack grew up together."),
+                MakePortrait(cornerGroup, "character-k", new Vector3(0.95f, 1.45f, 0.22f), toUser, "michael_01", "Michael", "Your son",
+                    "Michael is wearing a red shirt.", "Michael lives in New York.",
+                    "Michael calls you every Sunday afternoon."),
+            };
+            corner = (mat.transform, sign, people);
+
+            // Nightstand with the lamp and the phone.
+            var phoneGroup = new GameObject("AR Nightstand").transform;
+            var nightstand = Place(phoneGroup, "cabinetBedDrawerTable", 0f, 0f, 0f, S);
+            var nsTop = nightstand.bounds.max.y;
+            Place(phoneGroup, "lampRoundTable", -0.17f, -0.03f, 0f, S, floorY: nsTop, addCollider: false);
+            phone = BuildPhone(new Vector3(0.16f, nsTop, 0f));
+            phone.transform.SetParent(phoneGroup, true);
+            phone.hintText = "Follow the little arrows on the floor — they lead to the nightstand with the lamp.";
+
+            // Memory Garden.
+            var gardenGroup = new GameObject("AR Memory Garden").transform;
+            var bed = CreateBlock(gardenGroup, "Memory Garden Bed", PrimitiveType.Cube,
+                new Vector3(0f, 0.02f, 0f), new Vector3(1.1f, 0.04f, 1.0f), new Color(0.36f, 0.27f, 0.2f));
+            UnityEngine.Object.DestroyImmediate(bed.GetComponent<Collider>());
+            gardenArea = new GameObject("Memory Garden Area").transform;
+            gardenArea.SetParent(gardenGroup, false);
+            gardenArea.localPosition = new Vector3(-0.4f, 0.04f, -0.3f);
+
+            groups = new[] { kitchen, sarahGroup, cornerGroup, phoneGroup, gardenGroup };
+        }
+
+        private static GameObject MakeSign(Transform parent, string message, Vector3 position, Quaternion rotation)
+        {
+            var sign = new GameObject("Sign");
+            sign.transform.SetParent(parent, false);
+            sign.transform.position = position;
+            sign.transform.rotation = rotation;
+            var text = sign.AddComponent<TextMesh>();
+            text.text = message;
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 64;
+            text.characterSize = 0.04f;
+            text.anchor = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignment.Center;
+            text.color = new Color(0.3f, 0.5f, 0.42f);
+            sign.GetComponent<MeshRenderer>().material = text.font.material;
+            return sign;
         }
 
         private static void AddPointLight(string name, Vector3 position, Color color, float intensity, float range)
@@ -377,47 +518,40 @@ namespace RecallAR.EditorTools
                 new Vector3(2.2f, 0.015f, -1.55f), new Vector3(1.4f, 0.03f, 1.0f), new Color(0.5f, 0.62f, 0.8f));
             UnityEngine.Object.DestroyImmediate(mat.GetComponent<Collider>());
 
-            var sign = new GameObject("Memory Corner Sign");
-            sign.transform.SetParent(corner, false);
-            sign.transform.position = new Vector3(2.2f, 2.15f, -InnerZ + 0.06f);
-            sign.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
-            var text = sign.AddComponent<TextMesh>();
-            text.text = "Memory Corner\nstep on the mat, then look at a picture";
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 64;
-            text.characterSize = 0.04f;
-            text.anchor = TextAnchor.MiddleCenter;
-            text.alignment = TextAlignment.Center;
-            text.color = new Color(0.3f, 0.5f, 0.42f);
-            sign.GetComponent<MeshRenderer>().material = text.font.material;
+            var sign = MakeSign(corner, "Memory Corner\nstep on the mat, then look at a picture",
+                new Vector3(2.2f, 2.15f, -InnerZ + 0.06f), Quaternion.Euler(0f, 180f, 0f));
 
             // Framed portraits on the wall (rendered from the same stylized
             // characters), not people standing in the room.
+            var wallZ = -InnerZ + 0.03f;
             var people = new[]
             {
-                MakePortrait(corner, "character-n", 1.25f, "susan_01", "Susan", "Your wife",
+                MakePortrait(corner, "character-n", new Vector3(1.25f, 1.45f, wallZ), Quaternion.identity, "susan_01", "Susan", "Your wife",
                     "Susan has dark hair and wears a green dress.", "Susan and you have been married since 1978.",
                     "You and Susan still make Sunday breakfast together."),
-                MakePortrait(corner, "character-c", 2.2f, "jack_01", "Jack", "Your brother",
+                MakePortrait(corner, "character-c", new Vector3(2.2f, 1.45f, wallZ), Quaternion.identity, "jack_01", "Jack", "Your brother",
                     "Jack is wearing a green shirt.", "Jack is your brother.",
                     "You and Jack grew up together."),
-                MakePortrait(corner, "character-k", 3.15f, "michael_01", "Michael", "Your son",
+                MakePortrait(corner, "character-k", new Vector3(3.15f, 1.45f, wallZ), Quaternion.identity, "michael_01", "Michael", "Your son",
                     "Michael is wearing a red shirt.", "Michael lives in New York.",
                     "Michael calls you every Sunday afternoon."),
             };
             return (mat.transform, sign, people);
         }
 
-        private static RecognizablePerson MakePortrait(Transform parent, string model, float x, string id, string name,
-            string relationship, string hint, string description, string memory)
+        /// <summary>A framed portrait; the picture face sits on the frame's local +Z side.</summary>
+        private static RecognizablePerson MakePortrait(Transform parent, string model, Vector3 framePosition, Quaternion rotation,
+            string id, string name, string relationship, string hint, string description, string memory)
         {
             var portrait = PortraitBaker.GetOrBake(model, $"{ModelsRoot}/BlockyCharacters/{model}.fbx", CharacterScale, 1.15f);
 
             var frame = CreateBlock(parent, name + " (portrait)", PrimitiveType.Cube,
-                new Vector3(x, 1.45f, -InnerZ + 0.03f), new Vector3(0.52f, 0.62f, 0.035f), new Color(0.35f, 0.24f, 0.16f));
+                framePosition, new Vector3(0.52f, 0.62f, 0.035f), new Color(0.35f, 0.24f, 0.16f));
+            frame.transform.rotation = rotation;
 
             var picture = CreateBlock(frame.transform, "Picture", PrimitiveType.Cube,
-                new Vector3(x, 1.45f, -InnerZ + 0.055f), new Vector3(0.44f, 0.54f, 0.012f), Color.white);
+                framePosition + rotation * new Vector3(0f, 0f, 0.025f), new Vector3(0.44f, 0.54f, 0.012f), Color.white);
+            picture.transform.rotation = rotation;
             UnityEngine.Object.DestroyImmediate(picture.GetComponent<Collider>());
             if (portrait != null)
             {
@@ -511,10 +645,10 @@ namespace RecallAR.EditorTools
         // ------------------------------------------------------------------
         // HUD + managers
 
-        private static void BuildHud(PlayerRig rig, bool worldSpaceHud, Shader hudShader, string legend,
+        private static BuildResult BuildHud(PlayerRig rig, bool worldSpaceHud, Shader hudShader, string legend,
             RecallARObject mug, RecallARObject phone, RecognizablePerson sarah,
             (Transform zone, GameObject sign, RecognizablePerson[] people) corner, Transform gardenArea,
-            SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
+            SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider, bool arMode = false)
         {
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
 
@@ -667,11 +801,12 @@ namespace RecallAR.EditorTools
             SetField(memoryGame, "timerPanel", timerPanel.gameObject);
             SetField(memoryGame, "cornerSign", corner.sign);
 
-            // Floor pathway for the final activity, routed around the furniture
-            // along the front wall to the bedside corner.
+            // Floor pathway for the final activity: routed around the furniture
+            // in the room; a straight line in AR (real rooms aren't known).
             var guidePath = managers.AddComponent<GuidePathController>();
             SetField(guidePath, "player", rig.camera.transform);
-            SetVector3Array(guidePath, "waypoints", new[] { new Vector3(0f, 0f, -2.6f), new Vector3(-2.9f, 0f, -2.8f) });
+            if (!arMode)
+                SetVector3Array(guidePath, "waypoints", new[] { new Vector3(0f, 0f, -2.6f), new Vector3(-2.9f, 0f, -2.8f) });
 
             var demoManager = managers.AddComponent<DemoSceneManager>();
             SetField(demoManager, "questManager", questManager);
@@ -682,6 +817,17 @@ namespace RecallAR.EditorTools
             SetField(demoManager, "instructionPanel", instructionPanel.gameObject);
             SetField(demoManager, "instructionText", instructionText);
             SetField(demoManager, "progressText", progressText);
+            if (arMode) SetBoolField(demoManager, "autoStart", false);
+
+            return new BuildResult
+            {
+                rig = rig,
+                demoManager = demoManager,
+                guidePath = guidePath,
+                instructionPanel = instructionPanel.gameObject,
+                instructionText = instructionText,
+                progressText = progressText,
+            };
         }
 
         /// <summary>Reticle on a separate always-on-top overlay canvas (desktop).</summary>
@@ -867,7 +1013,7 @@ namespace RecallAR.EditorTools
 
         /// <summary>Assigns a private [SerializeField] via SerializedObject, since this
         /// script wires everything at build time rather than in the inspector.</summary>
-        private static void SetField(UnityEngine.Object target, string fieldName, UnityEngine.Object value)
+        public static void SetField(UnityEngine.Object target, string fieldName, UnityEngine.Object value)
         {
             var so = new SerializedObject(target);
             var prop = so.FindProperty(fieldName);
@@ -880,7 +1026,7 @@ namespace RecallAR.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetObjectArray(UnityEngine.Object target, string fieldName, UnityEngine.Object[] values)
+        public static void SetObjectArray(UnityEngine.Object target, string fieldName, UnityEngine.Object[] values)
         {
             var so = new SerializedObject(target);
             var prop = so.FindProperty(fieldName);
@@ -895,7 +1041,20 @@ namespace RecallAR.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetStringField(UnityEngine.Object target, string fieldName, string value)
+        public static void SetBoolField(UnityEngine.Object target, string fieldName, bool value)
+        {
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(fieldName);
+            if (prop == null)
+            {
+                Debug.LogError($"DemoSceneBuilder: no field '{fieldName}' on {target.GetType().Name}");
+                return;
+            }
+            prop.boolValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        public static void SetStringField(UnityEngine.Object target, string fieldName, string value)
         {
             var so = new SerializedObject(target);
             var prop = so.FindProperty(fieldName);
@@ -908,7 +1067,7 @@ namespace RecallAR.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetVector3Array(UnityEngine.Object target, string fieldName, Vector3[] values)
+        public static void SetVector3Array(UnityEngine.Object target, string fieldName, Vector3[] values)
         {
             var so = new SerializedObject(target);
             var prop = so.FindProperty(fieldName);

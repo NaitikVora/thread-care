@@ -41,7 +41,10 @@
     "com.unity.modules.xr": "1.0.0",
     "com.meta.xr.sdk.core": "205.0.0",
     "com.unity.xr.management": "4.7.0",
-    "com.unity.xr.openxr": "1.18.0"
+    "com.unity.xr.openxr": "1.18.0",
+    "com.unity.xr.arfoundation": "6.6.2",
+    "com.unity.xr.arkit": "6.6.2",
+    "com.unity.xr.legacyinputhelpers": "2.1.12"
   },
   "scopedRegistries": [
     {

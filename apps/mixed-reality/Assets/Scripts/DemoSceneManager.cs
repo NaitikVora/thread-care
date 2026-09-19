@@ -30,6 +30,8 @@ namespace RecallAR
         [SerializeField] private float foundPauseBeforeMemory = 1.6f;
         [Tooltip("The memory game runs after this quest (index) is completed and its memory dismissed.")]
         [SerializeField] private int gameAfterQuestIndex = 1;
+        [Tooltip("Off for AR, where the placer starts the flow once the room has been scanned.")]
+        [SerializeField] private bool autoStart = true;
 
         private int questIndex = -1;
         private QuestDefinition pendingMemoryFor;
@@ -52,6 +54,12 @@ namespace RecallAR
         }
 
         private void Start()
+        {
+            if (autoStart) Begin();
+        }
+
+        /// <summary>Starts the guided sequence (greeting, then the first quest).</summary>
+        public void Begin()
         {
             ShowInstruction(greeting);
             SetProgress("");

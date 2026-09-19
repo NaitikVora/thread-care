@@ -68,6 +68,18 @@ plays again (the garden keeps its flowers).
 just counted. Looking at Sarah outside her activity still shows her card; that's by
 design (recognition help is always on).
 
+## Phone AR variant (real room)
+
+`Assets/Scenes/RecallAR_Demo_AR.unity` (menu **RecallAR → Build Demo Scene (Phone AR)**) runs
+the same activities inside the person's *actual* room on an iPhone, using AR Foundation +
+ARKit: the camera shows the room, `ARDemoPlacer` waits for ARKit to find the floor, then
+places a little kitchen table with the mug ahead of the person, Sarah to one side, the
+Memory Corner photo stand (with the mat) behind, the nightstand with the phone to the other
+side, and the garden nearby — all anchored to the real floor. The person physically walks;
+recognition is still gaze-and-hold on these virtual objects (no camera-image analysis).
+Build with **RecallAR → Build iOS (Xcode project) - Phone AR**, then run from Xcode.
+`ARProjectSetup` enables the ARKit loader for iOS; Standalone/Meta XR settings are separate.
+
 ## Architecture
 
 This is built to the same separation the product spec asks for, so a real device

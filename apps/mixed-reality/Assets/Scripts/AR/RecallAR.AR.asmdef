@@ -1,0 +1,8 @@
+{
+  "name": "RecallAR.AR",
+  "rootNamespace": "RecallAR.AR",
+  "references": [ "RecallAR", "UnityEngine.UI", "Unity.XR.ARFoundation", "Unity.XR.ARSubsystems", "Unity.XR.CoreUtils" ],
+  "autoReferenced": true,
+  "defineConstraints": [ "RECALLAR_ARF" ],
+  "versionDefines": [ { "name": "com.unity.xr.arfoundation", "expression": "", "define": "RECALLAR_ARF" } ]
+}

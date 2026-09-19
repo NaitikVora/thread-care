@@ -1,0 +1,9 @@
+{
+  "name": "RecallAR.Editor.AR",
+  "rootNamespace": "RecallAR.EditorTools.AR",
+  "references": [ "RecallAR", "RecallAR.AR", "RecallAR.Editor", "UnityEngine.UI", "Unity.XR.ARFoundation", "Unity.XR.ARSubsystems", "Unity.XR.CoreUtils", "Unity.XR.Management", "Unity.XR.Management.Editor", "UnityEngine.SpatialTracking" ],
+  "includePlatforms": [ "Editor" ],
+  "autoReferenced": true,
+  "defineConstraints": [ "RECALLAR_ARF" ],
+  "versionDefines": [ { "name": "com.unity.xr.arfoundation", "expression": "", "define": "RECALLAR_ARF" } ]
+}

@@ -21,7 +21,11 @@ namespace RecallAR.Game
         [SerializeField] private float refreshInterval = 0.25f;
 
         private Transform target;
+        private float floorY;
         private readonly List<Transform> markers = new List<Transform>();
+
+        /// <summary>Height of the floor the chevrons lie on (0 in the built room; the detected plane in AR).</summary>
+        public void SetFloorY(float y) => floorY = y;
         private readonly List<Renderer> markerRenderers = new List<Renderer>();
         private Material material;
         private float nextRefresh;
@@ -82,7 +86,7 @@ namespace RecallAR.Game
                 while (next <= walked + length && next < limit && used < markers.Count)
                 {
                     var m = markers[used++];
-                    m.position = a + dir * (next - walked) + Vector3.up * 0.012f;
+                    m.position = a + dir * (next - walked) + Vector3.up * (floorY + 0.012f);
                     m.rotation = Quaternion.LookRotation(dir, Vector3.up);
                     m.gameObject.SetActive(true);
                     next += spacing;
@@ -152,3 +156,4 @@ namespace RecallAR.Game
         private static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
     }
 }
+
