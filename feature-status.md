@@ -20,6 +20,8 @@
 
 Current local verification: **67 application tests plus 1 real PostgreSQL test passing**, TypeScript check and production build passing. Test fixtures are confined to tests; no runtime AI or glasses response is mocked. The real app is at `http://127.0.0.1:4173`.
 
+The connected-encounter backend and PostgreSQL checks passed on [GitHub run 35457287481](https://github.com/NaitikVora/thread-care/actions/runs/35457287481). The real connected ElevenLabs agent accepted the prompt-only update with voice/model/tool IDs preserved. Browser QA verified current-person confirmation, clearing, recovery and basic-mode identity answers against a separate synthetic household.
+
 Earlier GitHub verification passed for application commit `7b2e306` on September 19, 2026: [tests, build and PostgreSQL run](https://github.com/NaitikVora/thread-care/actions/runs/35454530780). The connected-encounter fix adds six regression tests and was checked through the real browser UI with a separate synthetic household.
 
 ## Earlier core feature detail

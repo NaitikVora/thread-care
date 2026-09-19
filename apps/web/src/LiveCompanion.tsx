@@ -85,6 +85,7 @@ export function LiveCompanion({
     capturePromise = useRef<Promise<DiaryEvent | null> | null>(null),
     contextRequest = useRef(0),
     lastLiveSent = useRef(""),
+    lastEncounterSeen = useRef(""),
     confirmationView = useRef<string | null>(null),
     captureAbort = useRef<AbortController | null>(null),
     questionAbort = useRef<{ id: string; controller: AbortController } | null>(
@@ -130,6 +131,15 @@ export function LiveCompanion({
       current.current.status !== "active"
     )
       return;
+    const encounterSignature =
+      (context.currentEncounter?.id || "") +
+      ":" +
+      (context.currentEncounter?.person.revision || "");
+    if (lastEncounterSeen.current !== encounterSignature) {
+      setResult(null);
+      setSources([]);
+      lastEncounterSeen.current = encounterSignature;
+    }
     setLive(context);
     const signature = JSON.stringify({
       encounter: context.currentEncounter,
@@ -1072,8 +1082,8 @@ export function LiveCompanion({
                 <span>Your {live.currentEncounter.person.relationship}</span>
                 <p>{live.currentEncounter.person.description}</p>
                 <small>
-                  Confirmed {stamp(live.currentEncounter.confirmedAt)} ·
-                  refreshes after 15 minutes. This does not track faces.
+                  Confirmed {stamp(live.currentEncounter.confirmedAt)} · expires
+                  after 15 minutes. This does not track faces.
                 </small>
                 <button className="text-button" onClick={endEncounter}>
                   They’ve left / clear confirmation
