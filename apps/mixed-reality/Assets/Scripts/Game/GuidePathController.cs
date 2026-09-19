@@ -131,8 +131,10 @@ namespace RecallAR.Game
                 bar.name = "Bar";
                 Destroy(bar.GetComponent<Collider>());
                 bar.transform.SetParent(root, false);
+                // Two bars whose front ends meet at +Z (the direction of travel),
+                // so the chevron's point leads the way rather than trailing.
                 bar.transform.localScale = new Vector3(0.03f, 0.008f, 0.16f);
-                bar.transform.localRotation = Quaternion.Euler(0f, sign * 35f, 0f);
+                bar.transform.localRotation = Quaternion.Euler(0f, -sign * 35f, 0f);
                 bar.transform.localPosition = new Vector3(sign * 0.045f, 0f, -0.03f);
                 var r = bar.GetComponent<Renderer>();
                 r.sharedMaterial = material;

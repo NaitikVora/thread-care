@@ -177,11 +177,24 @@ namespace RecallAR.EditorTools
 
             Place(shell, "lampSquareCeiling", 0f, 0.3f, 0f, S, floorY: WallHeight - 2.3f * S, addCollider: false);
 
-            // Family photograph on the back wall, right of the window.
+            // Family photograph on the back wall, right of the window: a baked
+            // group shot of Sarah, Michael and Susan.
             CreateBlock(shell, "Family Photograph Frame", PrimitiveType.Cube,
                 new Vector3(2.75f, 1.55f, InnerZ - 0.02f), new Vector3(0.62f, 0.46f, 0.04f), new Color(0.35f, 0.24f, 0.16f));
-            CreateBlock(shell, "Family Photograph", PrimitiveType.Cube,
-                new Vector3(2.75f, 1.55f, InnerZ - 0.045f), new Vector3(0.52f, 0.36f, 0.02f), new Color(0.9f, 0.82f, 0.62f));
+            var photo = CreateBlock(shell, "Family Photograph", PrimitiveType.Cube,
+                new Vector3(2.75f, 1.55f, InnerZ - 0.045f), new Vector3(0.52f, 0.36f, 0.02f), Color.white);
+            var family = PortraitBaker.GetOrBakeGroup("family", new[]
+            {
+                new PortraitBaker.Subject { modelAssetPath = $"{ModelsRoot}/BlockyCharacters/character-k.fbx", xOffset = -0.95f, yRotation = 15f },
+                new PortraitBaker.Subject { modelAssetPath = $"{ModelsRoot}/BlockyCharacters/character-e.fbx", xOffset = 0f, yRotation = 0f },
+                new PortraitBaker.Subject { modelAssetPath = $"{ModelsRoot}/BlockyCharacters/character-n.fbx", xOffset = 0.95f, yRotation = -15f },
+            }, CharacterScale, 0.95f, 4.6f, 34f, 768, 512);
+            if (family != null)
+            {
+                var material = new Material(Shader.Find("Standard")) { name = "Family Photo", mainTexture = family };
+                material.SetFloat("_Glossiness", 0.15f);
+                photo.GetComponent<Renderer>().material = material;
+            }
         }
 
         // ------------------------------------------------------------------
