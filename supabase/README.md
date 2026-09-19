@@ -65,6 +65,20 @@ counted so a caregiver can see them; they are never a penalty.
    should see `session_started`, `quest_started`, `quest_completed`, … rows appear
    within a second or two of each step on the phone (there is no batching).
 
+### Mock data for dashboard development
+
+[`seed/seed-mock-activity.mjs`](seed/seed-mock-activity.mjs) posts ~two weeks of
+plausible sessions (varied times of day, hints, durations, memory-game looks, an
+occasional run closed early) through the same REST calls as the phone:
+
+```bash
+node supabase/seed/seed-mock-activity.mjs
+```
+
+It reads the URL/key from the Unity config file, or from `SUPABASE_URL` /
+`SUPABASE_ANON_KEY`. Each run adds a fresh batch. To clear mock data, delete the
+rows in the Table Editor (the anon key deliberately cannot delete).
+
 ---
 
 ## Part 2 — Reading the data (web-app teammate)
