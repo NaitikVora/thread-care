@@ -1149,25 +1149,6 @@
   gap: 8px;
   margin: 18px 0;
 }
-.recognition-demo-notice {
-  padding: 16px 18px;
-  background: #fff6df;
-  border: 1px solid #dfcd9f;
-  border-radius: 14px;
-  color: #654c24;
-}
-.recognition-demo-notice strong {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-}
-.recognition-demo-notice p {
-  margin: 8px 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-.recognition-demo-notice small {
-  font-size: 12px;
-}
 .recognition-chart-scroll {
   overflow-x: auto;
 }

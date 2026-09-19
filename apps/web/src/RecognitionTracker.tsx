@@ -115,21 +115,6 @@ export function RecognitionTracker({
           Real diary data
         </button>
       </div>
-      {demo && (
-        <div className="recognition-demo-notice" role="note">
-          <strong>DEMO · Synthetic data</strong>
-          <p>
-            A fictional month with gradual gains and everyday ups and downs.
-            Four fictional people are observed each day. This illustrates the
-            dashboard, not an expected course of Alzheimer’s or a patient's
-            health progress.
-          </p>
-          <small>
-            Demo values stay out of diary records, exports and voice-agent
-            memory. Switch to Real diary data to log observations.
-          </small>
-        </div>
-      )}
       <p className="fine">
         {demo ? "Synthetic observations" : "Human-reported observations"} ·{" "}
         {day} · {timezone()}. This is not a health or memory test score.
