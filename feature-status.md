@@ -9,18 +9,18 @@
 | Diary retrieval in patient view | Browser verified | Synthetic note saved through real UI, retrieved in Basic mode with timestamp/source; separate test database, no provider simulation |
 | OpenAI image observations and recaps | Implemented | Structured Responses API with no runtime fallback/mock; provider contract and fabricated-source rejection tests pass |
 | OpenAI account connection | Live-provider verified | Existing user session key passed the real connection test on September 19, 2026; full live model-quality evaluation not performed |
-| ElevenLabs live voice | Implemented; live account/device check pending | Official browser/server SDK, private agent creation, signed URLs, interruption, captions, context tools; SDK request serialization tested with controlled transport |
+| ElevenLabs live voice | Implemented; account upgrade verified live | Official browser/server SDK, signed URLs and context tools. Existing real agent received the encounter instruction update; returned voice/model/tool IDs were unchanged. Updated microphone conversation still needs a user/device check. |
 | Voice context/action tools | Implemented | Read context, inspect current camera view, labeled profiles, reviewed proposals; direct-memory bypass prevented for voice proposals |
-| Familiar-person portal | Implemented | Consent, photos, correction, deletion and patient-confirmed encounters tested; no automatic face matching |
+| Familiar-person portal | Implemented and browser checked | Confirmation creates current presence linked to the session and recent camera observation; voice tools and patient text requests share it. Clearing, expiry, pause/restart and corrections prevent stale presence. No automatic face matching. |
 | Patient / caregiver access | Implemented for one household | Expiring hashed sessions, rate-limited sign-in, role-based API checks; authentication/HTTPS required before network/production mode |
 | PostgreSQL server adapter | Verified against PostgreSQL 17 | Real database migration, indexed diary retrieval and concurrent idempotency checks pass |
 | Container / deployment configuration | Built and started locally | Node 24 container connected to PostgreSQL 17; health returned 200 and unauthenticated data access returned 401 |
 | Meta native SDK | Not implemented or hardware verified | Browser adapter and documented native boundary; not presented as a working Meta integration |
 | Public hosting | Not performed | Only local preview and authorized GitHub source pushes |
 
-Current local verification: **61 application tests plus 1 real PostgreSQL test passing**, TypeScript check and production build passing. Test fixtures are confined to tests; no runtime AI or glasses response is mocked. The real app is at `http://127.0.0.1:4173`.
+Current local verification: **67 application tests plus 1 real PostgreSQL test passing**, TypeScript check and production build passing. Test fixtures are confined to tests; no runtime AI or glasses response is mocked. The real app is at `http://127.0.0.1:4173`.
 
-GitHub verification passed for application commit `7b2e306` on September 19, 2026: [tests, build and PostgreSQL run](https://github.com/NaitikVora/thread-care/actions/runs/35454530780). Later handoff changes only update documentation.
+Earlier GitHub verification passed for application commit `7b2e306` on September 19, 2026: [tests, build and PostgreSQL run](https://github.com/NaitikVora/thread-care/actions/runs/35454530780). The connected-encounter fix adds six regression tests and was checked through the real browser UI with a separate synthetic household.
 
 ## Earlier core feature detail
 
@@ -57,7 +57,7 @@ Last implementation pass: September 19, 2026. This file distinguishes code imple
 
 ## Current verification count
 
-27 retained domain/provider tests, 19 durable-application tests, 13 day-companion tests and 2 media-lifecycle tests pass (61 application tests). One additional real PostgreSQL integration test passes. Build and type checking pass. The production container builds and starts against PostgreSQL 17 with its authentication boundary enforced. Earlier core QA used an explicitly controlled fixture. The current diary UI walkthrough uses the real application with a separate local database and no cloud key. The real application on port 4173 does not load fixtures.
+27 retained domain/provider tests, 19 durable-application tests, 19 day-companion tests and 2 media-lifecycle tests pass (67 application tests). One additional real PostgreSQL integration test passes. Build and type checking pass. The production container builds and starts against PostgreSQL 17 with its authentication boundary enforced. Earlier core QA used an explicitly controlled fixture. The current diary UI walkthrough uses the real application with a separate local database and no cloud key. The real application on port 4173 does not load fixtures.
 
 ## Known product limits
 

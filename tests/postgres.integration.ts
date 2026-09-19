@@ -13,7 +13,10 @@ test(
     // Use a disposable database only: migrations and these synthetic records are written.
     const db = await openDatabase("unused", url),
       repo = new Repository(db),
-      id = randomUUID();
+      id = randomUUID(),
+      sessionId = randomUUID(),
+      personId = randomUUID(),
+      encounterId = randomUUID();
     try {
       assert.equal(db.kind, "PostgreSQL");
       await repo.init();
@@ -28,6 +31,28 @@ test(
         new LocalImageStorage("/tmp/thread-ci-unused"),
       );
       assert((await diary.search("umbrellas garage")).some((e) => e.id === id));
+      await db.query(
+        "INSERT INTO diary_sessions(id,title,status,policy) VALUES($1,'CI encounter','active','{}')",
+        [sessionId],
+      );
+      await db.query(
+        "INSERT INTO trusted_people(id,name,relationship,author,consent_at) VALUES($1,'CI Maya','daughter','QA',now())",
+        [personId],
+      );
+      await db.query(
+        "INSERT INTO diary_events(id,session_id,kind,status,review,title,summary,fingerprint,captured_at,expires_at) VALUES($1,$2,'person','ready','confirmed','CI visit','Confirmed CI visit','ci-only',now(),$3)",
+        [encounterId, sessionId, expires],
+      );
+      await db.query(
+        "INSERT INTO current_encounters(id,session_id,person_id,valid_until) VALUES($1,$2,$3,$4)",
+        [encounterId, sessionId, personId, expires],
+      );
+      assert.equal(
+        (await diary.liveContext(sessionId)).currentEncounter?.person.name,
+        "CI Maya",
+      );
+      await diary.endEncounter(sessionId, "ci-finished");
+      assert.equal((await diary.liveContext(sessionId)).currentEncounter, null);
       const current = await repo.snapshot(),
         requestId = randomUUID(),
         action = { type: "intention" as const, text: "CI synthetic intention" };
@@ -37,6 +62,8 @@ test(
       ]);
       assert.equal(results[0].revision, results[1].revision);
     } finally {
+      await db.query("DELETE FROM diary_sessions WHERE id=$1", [sessionId]);
+      await db.query("DELETE FROM trusted_people WHERE id=$1", [personId]);
       await db.query("DELETE FROM diary_events WHERE id=$1", [id]);
       await db.close();
     }

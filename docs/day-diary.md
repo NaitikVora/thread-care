@@ -11,6 +11,7 @@ For longer sessions, configure `OPENAI_API_KEY` on the server: the browser-enter
 - `diary_corrections`: previous wording and the reviewer's name/time. Corrections replace searchable text; old wording remains inspectable, not in search results.
 - `diary_digests`: sourced AI recap, source fingerprint and generation time. A correction/deletion invalidates recaps; a concurrent edit rejects an in-progress recap.
 - `trusted_people`: caregiver-labeled profiles and consented photos. A patient-confirmed encounter becomes a separate diary event.
+- `current_encounters`: the current confirmed person, linked to a diary session and optionally a recent camera observation. Voice context reads this explicitly, independently of keyword search.
 - `voice_sessions`: provider conversation ID and connection lifecycle. Transcript text is opt-in; raw audio is never stored by Thread.
 
 The indexed search uses PostgreSQL `tsvector`/GIN, stemming, ranking, timestamps, day/time-zone filters and categories. It is full-text retrieval, not a trained model or vector embedding system. The agent can reformulate queries using the `search_diary` tool. Sources remain visible with their recorded time. Unknown or unrecorded periods remain unknown.
@@ -21,6 +22,14 @@ The indexed search uses PostgreSQL `tsvector`/GIN, stemming, ranking, timestamps
 2. **Recover an activity:** pause a reviewed routine → resume the app → retrieve the saved intention and last unconfirmed step. A camera image cannot mark a step complete.
 3. **Reconnect with family:** select a caregiver-labeled photo → patient confirms who is there → the encounter is recorded → the voice companion can recall this confirmed visit.
 4. **Reflect together:** open the daily timeline → correct an uncertain observation → generate a recap → inspect the actual moment links.
+
+## Connecting a person to the current view
+
+A profile photo alone does not establish who appears in a camera frame. Ask the voice companion who is with you, or press **Who is with me?**. If nobody is confirmed, the saved profile choices open. Select a person and confirm. Thread stores an encounter, links a camera observation if it is recent, updates the current-person card and sends the confirmed context to the connected voice conversation. Voice can then use the person's name, relationship and profile details. It does not guess which visible face belongs to them.
+
+**They’ve left / clear confirmation** removes current presence while preserving the diary visit. Confirmation expires after 15 minutes and clears on pause, end, restart, profile deletion or correction of the encounter record. An old visit is never automatically restored as current presence. Voice requests and current-session text questions receive the latest observation and confirmed encounter from the same database.
+
+The backend rejects links to another session's image or a capture older than two minutes. Confirmation does not turn camera descriptions into verified facts. No face embeddings or automatic matching are generated from profile photos.
 
 ## Boundaries
 

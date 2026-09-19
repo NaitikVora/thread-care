@@ -423,10 +423,13 @@ export async function createApp(options: {
           .default("chat"),
         image: z.string().optional(),
         requireReview: z.boolean().default(false),
+        sessionId: z.uuid().optional(),
         timezone: z.string().max(80).default("UTC"),
       })
       .parse(req.body);
     if (b.image) decodeImage(b.image);
+    if (b.sessionId) await diary.active(b.sessionId);
+    const live = b.sessionId ? await diary.liveContext(b.sessionId) : undefined;
     const existing = (
       await db.query("SELECT * FROM agent_runs WHERE id=$1", [b.id])
     ).rows[0];
@@ -509,6 +512,7 @@ export async function createApp(options: {
           b.image,
           {
             state: snapshot.state,
+            live,
             search: (q) => repo.search(q),
             diary: (q) => diary.context(q),
             people: () => diary.people(),
@@ -529,13 +533,28 @@ export async function createApp(options: {
           ...(await repo.search(b.message)),
           ...(await diary.context(b.message)),
         ];
+        const askingWho =
+          !!live &&
+          /\bwho\b.*\b(this|that|it|here|with me|with us|person)\b/i.test(
+            b.message,
+          );
+        const encounter = live?.currentEncounter;
         result = {
-          reply: sources.length
-            ? "From your saved records:\n\n" +
-              sources
-                .map((k) => k.title + ": " + k.content + " — " + k.author)
-                .join("\n\n")
-            : replyTo(snapshot.state, b.message).reply,
+          reply: askingWho
+            ? encounter
+              ? "You confirmed that " +
+                encounter.person.name +
+                ", your " +
+                encounter.person.relationship +
+                ", is with you. " +
+                encounter.person.description
+              : "No one is currently confirmed with you. Choose a saved photo under Familiar people, or ask your companion to help."
+            : sources.length
+              ? "From your saved records:\n\n" +
+                sources
+                  .map((k) => k.title + ": " + k.content + " — " + k.author)
+                  .join("\n\n")
+              : replyTo(snapshot.state, b.message).reply,
           actions: [],
           sources,
         };
@@ -548,7 +567,7 @@ export async function createApp(options: {
               : "Basic mode: checked saved routines and notes.",
           },
         ];
-        if (!sources.length) {
+        if (!sources.length && !askingWho) {
           const command = replyTo(snapshot.state, b.message);
           if (
             JSON.stringify(command.state.active) !==
@@ -562,6 +581,19 @@ export async function createApp(options: {
         }
       }
       ctrl.signal.throwIfAborted();
+      if (b.sessionId) {
+        await diary.active(b.sessionId);
+        const now = await diary.liveContext(b.sessionId);
+        if (
+          live?.currentEncounter?.id !== now.currentEncounter?.id ||
+          live?.currentEncounter?.person.revision !==
+            now.currentEncounter?.person.revision
+        )
+          throw new HttpError(
+            409,
+            "Who is with you changed while Thread was answering. Please ask again.",
+          );
+      }
       let revision = result.revision,
         stale = false;
       if (revision === undefined) {
@@ -896,6 +928,7 @@ export async function createApp(options: {
             )
           ).rows,
           corrections: (await db.query("SELECT * FROM diary_corrections")).rows,
+          encounters: (await db.query("SELECT * FROM current_encounters")).rows,
         },
         people: await diary.people(),
       }),

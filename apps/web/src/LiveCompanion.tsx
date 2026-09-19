@@ -26,6 +26,7 @@ import type {
   DiaryEvent,
   TrustedPerson,
   SessionPolicy,
+  LiveContext,
 } from "../../../packages/contracts/src/diary";
 import type { AIStatus, Bootstrap, Result } from "./types";
 import type { AgentAction } from "../../../packages/agent/src/index";
@@ -48,6 +49,9 @@ export function LiveCompanion({
     [events, setEvents] = useState<DiaryEvent[]>([]),
     [people, setPeople] = useState<TrustedPerson[]>([]),
     [person, setPerson] = useState<TrustedPerson | null>(null),
+    [live, setLive] = useState<LiveContext | null>(null),
+    [choosingPerson, setChoosingPerson] = useState(false),
+    [confirmingPerson, setConfirmingPerson] = useState(false),
     [setup, setSetup] = useState(false),
     [cameraOn, setCameraOn] = useState(false),
     [starting, setStarting] = useState(false),
@@ -78,7 +82,10 @@ export function LiveCompanion({
     voiceId = useRef<string | null>(null),
     lastImage = useRef<Uint8ClampedArray | null>(null),
     lastCapture = useRef(0),
-    inFlight = useRef(false),
+    capturePromise = useRef<Promise<DiaryEvent | null> | null>(null),
+    contextRequest = useRef(0),
+    lastLiveSent = useRef(""),
+    confirmationView = useRef<string | null>(null),
     captureAbort = useRef<AbortController | null>(null),
     questionAbort = useRef<{ id: string; controller: AbortController } | null>(
       null,
@@ -92,8 +99,19 @@ export function LiveCompanion({
   current.current = session;
   readUpdatesRef.current = readUpdates;
   function updateSession(s: DiarySession | null) {
+    if (!s || s.status !== "active" || s.id !== current.current?.id) {
+      contextRequest.current++;
+      setLive(null);
+      setPerson(null);
+      setChoosingPerson(false);
+      confirmationView.current = null;
+    }
     current.current = s;
     setSession(s);
+    if (s)
+      setSessions((items) =>
+        items.map((item) => (item.id === s.id ? s : item)),
+      );
   }
   async function load() {
     const [ss, pp, v] = await Promise.all([
@@ -104,6 +122,66 @@ export function LiveCompanion({
     setSessions(ss);
     setPeople(pp);
     setVoiceReady(v.configured);
+  }
+  function acceptLiveContext(context: LiveContext) {
+    if (
+      !mounted.current ||
+      current.current?.id !== context.sessionId ||
+      current.current.status !== "active"
+    )
+      return;
+    setLive(context);
+    const signature = JSON.stringify({
+      encounter: context.currentEncounter,
+      observation: context.latestObservation?.id,
+      revision: context.latestObservation?.revision,
+    });
+    if (voice.current && signature !== lastLiveSent.current) {
+      voice.current.sendContextualUpdate(
+        JSON.stringify({ type: "current_session_context", live: context }),
+      );
+      lastLiveSent.current = signature;
+    }
+  }
+  async function refreshLiveContext() {
+    const sessionId = current.current?.id;
+    if (!sessionId) return null;
+    const request = ++contextRequest.current;
+    const context = await api<LiveContext>(
+      "/api/v1/diary/session/" + sessionId + "/context",
+    );
+    if (request === contextRequest.current) acceptLiveContext(context);
+    return context;
+  }
+  async function choosePerson() {
+    try {
+      const [context, profiles] = await Promise.all([
+        refreshLiveContext(),
+        api<TrustedPerson[]>("/api/v1/people"),
+      ]);
+      setPeople(profiles);
+      confirmationView.current =
+        context?.latestObservation &&
+        (context.observationAgeSeconds ?? Infinity) < 90
+          ? context.latestObservation.id
+          : null;
+      setChoosingPerson(true);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+  async function endEncounter() {
+    if (!live?.currentEncounter || !current.current) return;
+    try {
+      const context = await api<LiveContext>(
+        "/api/v1/diary/session/" + current.current.id + "/encounter/end",
+        { encounterId: live.currentEncounter.id },
+      );
+      acceptLiveContext(context);
+      setCaption("The visit is saved. No one is currently confirmed with you.");
+    } catch (e: any) {
+      setError(e.message);
+    }
   }
   function stopCamera() {
     epoch.current++;
@@ -173,10 +251,12 @@ export function LiveCompanion({
     const id = setInterval(() => {
       api<DiarySession>("/api/v1/diary/sessions/" + session.id, {
         operation: "heartbeat",
-      }).catch((e) => {
-        setError(e.message);
-        void pause("The session disconnected. Resume after reconnecting.");
-      });
+      })
+        .then(() => refreshLiveContext())
+        .catch((e) => {
+          setError(e.message);
+          void pause("The session disconnected. Resume after reconnecting.");
+        });
     }, 20000);
     return () => clearInterval(id);
   }, [session?.id, session?.status]);
@@ -185,7 +265,8 @@ export function LiveCompanion({
     api<DiaryEvent[]>("/api/v1/diary/session/" + session.id + "/events")
       .then(setEvents)
       .catch((e) => setError(e.message));
-  }, [session?.id]);
+    void refreshLiveContext().catch((e) => setError(e.message));
+  }, [session?.id, session?.status]);
   useEffect(() => {
     if (!cameraOn || !auto || session?.status !== "active") return;
     const interval = session.policy.intervalSeconds * 1000;
@@ -297,12 +378,20 @@ export function LiveCompanion({
       [event, ...v.filter((e) => e.id !== event.id)].slice(0, 80),
     );
   }
-  async function capture(force = true) {
+  async function capture(force = true): Promise<DiaryEvent | null> {
+    if (capturePromise.current) return force ? capturePromise.current : null;
+    const request = performCapture(force);
+    capturePromise.current = request;
+    try {
+      return await request;
+    } finally {
+      if (capturePromise.current === request) capturePromise.current = null;
+    }
+  }
+  async function performCapture(force: boolean) {
     const s = current.current;
     if (!s || s.status !== "active" || !camera.current)
       throw new Error("Start an active camera session first.");
-    if (inFlight.current) return null;
-    inFlight.current = true;
     setCapturing(true);
     setError("");
     const token = epoch.current;
@@ -334,15 +423,7 @@ export function LiveCompanion({
       lastCapture.current = Date.now();
       addEvent(event);
       setCaption(event.summary);
-      voice.current?.sendContextualUpdate(
-        JSON.stringify({
-          source: "Unreviewed camera observation",
-          time: event.capturedAt,
-          id: event.id,
-          summary: event.summary,
-          uncertainty: event.details.uncertainty,
-        }),
-      );
+      await refreshLiveContext();
       if (readUpdatesRef.current && voice.current)
         voice.current.sendUserMessage(
           "Please briefly read the latest camera observation, making clear it is an observation.",
@@ -356,7 +437,6 @@ export function LiveCompanion({
       }
       throw e;
     } finally {
-      inFlight.current = false;
       captureAbort.current = null;
       if (mounted.current) setCapturing(false);
     }
@@ -377,6 +457,10 @@ export function LiveCompanion({
           message,
           purpose: "chat",
           requireReview: true,
+          sessionId:
+            current.current?.status === "active"
+              ? current.current.id
+              : undefined,
           timezone: timezone(),
         },
         controller.signal,
@@ -517,15 +601,46 @@ export function LiveCompanion({
                 query: String(query || "").slice(0, 300),
               });
               setSources([...context.knowledge, ...context.moments]);
+              acceptLiveContext(context.live);
               return context;
             }),
           inspect_current_view: () =>
             voiceTool(async () => {
               const e = await captureRef.current(true);
               if (!e) throw new Error("Wait for the current analysis.");
-              return e;
+              return { observation: e, live: await refreshLiveContext() };
             }),
-          get_familiar_people: () => voiceTool(() => api("/api/v1/people")),
+          get_familiar_people: () =>
+            voiceTool(async () => {
+              const [context, profiles] = await Promise.all([
+                api("/api/v1/voice/context", { sessionId: s.id, query: "" }),
+                api<TrustedPerson[]>("/api/v1/people"),
+              ]);
+              if (
+                token !== voiceEpoch.current ||
+                current.current?.id !== s.id ||
+                current.current.status !== "active"
+              )
+                throw new Error("The voice session stopped.");
+              acceptLiveContext(context.live);
+              setPeople(profiles);
+              if (!context.live.currentEncounter) {
+                confirmationView.current =
+                  context.live.latestObservation &&
+                  context.live.observationAgeSeconds < 90
+                    ? context.live.latestObservation.id
+                    : null;
+                setChoosingPerson(true);
+              }
+              return {
+                live: context.live,
+                profiles: context.people,
+                confirmationRequired: !context.live.currentEncounter,
+                screen: context.live.currentEncounter
+                  ? "A patient-confirmed encounter is available."
+                  : "The saved photo choices are open. Ask the patient or companion to tap the correct photo, or choose I am not sure. Do not guess a name or promise face recognition.",
+              };
+            }),
           prepare_action: ({ request }) =>
             voiceTool(async () => {
               const r = await ask(String(request || "").slice(0, 2000));
@@ -552,8 +667,11 @@ export function LiveCompanion({
         sessionId: s.id,
         query: "",
       });
-      if (token === voiceEpoch.current)
+      if (token === voiceEpoch.current) {
+        lastLiveSent.current = "";
+        acceptLiveContext(context.live);
         c.sendContextualUpdate(JSON.stringify(context));
+      }
     } catch (e: any) {
       if (token === voiceEpoch.current) {
         setError(e.message || "Voice could not connect.");
@@ -562,30 +680,28 @@ export function LiveCompanion({
     }
   }
   async function confirmPerson() {
-    if (!person || !current.current) return;
+    if (!person || !current.current || confirmingPerson) return;
+    setConfirmingPerson(true);
     try {
       const event = await api<DiaryEvent>("/api/v1/diary/person", {
         id: crypto.randomUUID(),
         sessionId: current.current.id,
         personId: person.id,
+        observationId: confirmationView.current,
         confirmed: true,
       });
       addEvent(event);
       setCaption(person.name + " · " + person.relationship);
-      voice.current?.sendContextualUpdate(
-        JSON.stringify({
-          source: "Patient confirmed a labeled family profile",
-          person: {
-            name: person.name,
-            relationship: person.relationship,
-            description: person.description,
-          },
-          at: event.capturedAt,
-        }),
+      await refreshLiveContext();
+      voice.current?.sendUserMessage(
+        "I have confirmed who is with me using the saved photo. Please use the current encounter record to introduce them briefly, including their relationship to me.",
       );
       setPerson(null);
+      setChoosingPerson(false);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setConfirmingPerson(false);
     }
   }
   const active = session?.status === "active",
@@ -940,7 +1056,7 @@ export function LiveCompanion({
             <div className="section-head">
               <h3>
                 <Heart size={18} />
-                Familiar faces
+                Familiar people
               </h3>
               <button
                 className="text-button"
@@ -949,15 +1065,45 @@ export function LiveCompanion({
                 Manage
               </button>
             </div>
+            {live?.currentEncounter && (
+              <div className="current-encounter" role="status">
+                <span className="eyebrow">CONFIRMED WITH YOU</span>
+                <strong>{live.currentEncounter.person.name}</strong>
+                <span>Your {live.currentEncounter.person.relationship}</span>
+                <p>{live.currentEncounter.person.description}</p>
+                <small>
+                  Confirmed {stamp(live.currentEncounter.confirmedAt)} ·
+                  refreshes after 15 minutes. This does not track faces.
+                </small>
+                <button className="text-button" onClick={endEncounter}>
+                  They’ve left / clear confirmation
+                </button>
+              </div>
+            )}
             <p className="fine">
-              Choose a familiar photo, then confirm who is with you.
+              A saved photo helps you confirm a person. Thread does not
+              automatically match faces.
             </p>
+            <button
+              className="secondary"
+              disabled={!active}
+              onClick={choosePerson}
+            >
+              Who is with me?
+            </button>
             {people.slice(0, 6).map((p) => (
               <button
                 className="familiar-person"
                 disabled={!active}
                 key={p.id}
-                onClick={() => setPerson(p)}
+                onClick={() => {
+                  confirmationView.current =
+                    live?.latestObservation &&
+                    (live.observationAgeSeconds ?? Infinity) < 90
+                      ? live.latestObservation.id
+                      : null;
+                  setPerson(p);
+                }}
               >
                 {p.hasPhoto ? (
                   <img
@@ -1130,6 +1276,56 @@ export function LiveCompanion({
           </form>
         </Modal>
       )}
+      {choosingPerson && !person && (
+        <Modal
+          title="Who is with you?"
+          onClose={() => setChoosingPerson(false)}
+        >
+          <p>
+            Choose a saved photo if you or your companion recognize them. It is
+            okay to be unsure.
+          </p>
+          <div className="encounter-choices">
+            {people.map((p) => (
+              <button
+                className="familiar-person"
+                key={p.id}
+                onClick={() => setPerson(p)}
+              >
+                {p.hasPhoto ? (
+                  <img
+                    src={"/api/v1/people/" + p.id + "/photo"}
+                    alt={"Labeled photo of " + p.name}
+                  />
+                ) : (
+                  <span className="avatar">{p.name[0]}</span>
+                )}
+                <span>
+                  <strong>{p.name}</strong>
+                  <small>{p.relationship}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          {!people.length && (
+            <p>
+              No profiles have been added yet. A caregiver can add them under
+              Familiar people.
+            </p>
+          )}
+          <button
+            className="secondary"
+            onClick={() => {
+              setChoosingPerson(false);
+              voice.current?.sendUserMessage(
+                "I am not sure who is with me. Please do not guess their identity.",
+              );
+            }}
+          >
+            I’m not sure
+          </button>
+        </Modal>
+      )}
       {person && (
         <Modal
           title={"Is " + person.name + " with you?"}
@@ -1142,16 +1338,30 @@ export function LiveCompanion({
               alt={"Caregiver-labeled photo: " + person.name}
             />
           )}
+          {error && (
+            <p className="error-message" role="alert">
+              {error}
+            </p>
+          )}
           <h3>
             {person.name} · {person.relationship}
           </h3>
           <p>{person.description}</p>
           <p className="fine">
-            You are confirming this labeled person. Thread has not identified
-            anyone from the camera.
+            Your confirmation connects this person to the current visit
+            {confirmationView.current
+              ? " and the recent camera observation"
+              : ""}
+            . It is saved in your diary. If voice is connected, Thread can
+            introduce them now. It expires after 15 minutes or when you pause or
+            end the visit.
           </p>
           <div className="button-row">
-            <button className="primary" onClick={confirmPerson}>
+            <button
+              className="primary"
+              disabled={confirmingPerson || !active}
+              onClick={confirmPerson}
+            >
               <Check size={18} />
               Yes, this is who is with me
             </button>

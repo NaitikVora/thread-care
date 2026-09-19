@@ -8,6 +8,8 @@ Open **Live companion** for camera sessions, a patient view with visual feedback
 
 Connect OpenAI and ElevenLabs in **Settings**. Choose **Connect & create voice agent** to provision a private agent with Thread's tools in your ElevenLabs account. Then start a patient-controlled diary session, choose retention, turn on the camera, and press **Talk with Thread**. OpenAI analyzes selected stills; ElevenLabs streams voice and retrieves context from the same database. No real-time integration is replaced with a mock response.
 
+When asked who is with the patient, Thread opens saved profile choices if no encounter is confirmed. A confirmation links the person to the session and recent camera observation, updates the voice context, and stays available for follow-up questions. Clear the encounter when the person leaves; confirmation also expires or clears on pause. This does not perform automatic face matching. Existing ElevenLabs agents receive the updated instructions at the next voice connection.
+
 See [the complete demo flow](docs/day-diary.md), [ElevenLabs setup](docs/voice-agent.md), [deployment instructions](docs/deployment.md), and [the actual Meta integration boundary](docs/meta-integration.md).
 
 ## Start

@@ -121,7 +121,7 @@ export async function registerAccess(
       /^\/api\/v1\/(privacy\/clear|export|dataset\/export|import|preferences)$/.test(
         url,
       ) ||
-      /^\/api\/v1\/voice\/(connect|test|disconnect)$/.test(url) ||
+      /^\/api\/v1\/voice\/(connect|test|disconnect|sync)$/.test(url) ||
       (req.method !== "GET" &&
         /^\/api\/v1\/(knowledge|people|examples)(\/|$)/.test(url));
     if (adminOnly)

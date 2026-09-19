@@ -10,6 +10,8 @@ The patient view uses a real browser camera and the official ElevenLabs voice cl
 4. Confirm a labeled person or review a moment → durable confirmed record with provenance. No automatic face identification.
 5. Daily recap → source-bounded synthesis → validate references and source revisions → store recap.
 
+`migrations/005_current_encounter.sql` links a confirmed person to the current session and optional camera observation. These short-lived presence records are independent of searchable historical visits and expire or clear when interrupted. `/api/v1/voice/context` and session context reads expose the same state.
+
 `migrations/003_day_companion.sql` adds session, event, full-text GIN index, correction, digest, familiar-person, integration-secret and voice-lifecycle records. `004_household_access.sql` adds hashed, expiring household sessions. These are separate from the original authoritative domain state, so automatic camera observations cannot advance routine steps or silently overwrite caregiver facts.
 
 ## Device and provider boundaries

@@ -19,11 +19,17 @@ Alternatively set `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID` on the server. 
 | Client tool | Backend behavior |
 |---|---|
 | `search_context(query)` | Reads indexed diary records, caregiver notes, current routine, reminders and labeled profiles. Returns timestamps and review/source labels. |
-| `inspect_current_view()` | Captures a real still from the active browser camera, analyzes it through OpenAI, persists the observation, and returns the result to the voice agent. |
-| `get_familiar_people()` | Reads labeled profiles. It does not compare faces. |
+| `inspect_current_view()` | Captures a real still (or awaits the in-flight capture), analyzes it through OpenAI, persists the observation, and returns it with current-session context. |
+| `get_familiar_people()` | Reads the current confirmed encounter and labeled profiles. Opens the photo chooser when nobody is confirmed. It does not compare faces. |
 | `prepare_action(request)` | Runs the bounded OpenAI agent with `requireReview: true`. Displays proposals. Never executes them on behalf of the patient. |
 
 All client tools set `expects_response: true`. A camera observation can also be sent as a contextual update without interrupting the patient. The optional **Read new observations aloud** control explicitly requests a short spoken response after each new observation. Text-only Thread questions still work when voice is disconnected; they use OpenAI directly.
+
+## Existing agents receive the fix too
+
+At the next voice connection, Thread uses the official SDK to read the connected agent and append its versioned encounter instructions if missing. It patches only the prompt; existing instructions, voice, model and tool references are preserved. **Settings → Update Thread instructions** performs the same upgrade without starting a conversation. The API key needs agent read/write permissions. A failed upgrade is visible and prevents silently starting an outdated agent. Stop and restart an already-open voice conversation after an upgrade.
+
+The current prompt asks the agent to read the current encounter for identity questions, use confirmed names rather than reciting the entire profile list, and open the on-screen choices if confirmation is missing. This is patient-confirmed context, not automatic face recognition.
 
 ## Limits and retention
 

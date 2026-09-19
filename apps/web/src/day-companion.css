@@ -885,3 +885,27 @@
   line-height: 1.8;
   color: #75826d;
 }
+
+.current-encounter {
+  display: grid;
+  gap: 0.4rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface-soft, #edf3ed);
+  border: 1px solid var(--line, #d6dfd5);
+  border-radius: 16px;
+}
+.current-encounter > strong {
+  font-size: 1.2rem;
+}
+.current-encounter p {
+  margin: 0.25rem 0;
+}
+.current-encounter small {
+  color: var(--muted, #59665f);
+}
+.encounter-choices {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}

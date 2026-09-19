@@ -134,6 +134,26 @@ export function VoiceSettings({ notify }: { notify: (s: string) => void }) {
                 setBusy(true);
                 setError("");
                 try {
+                  await api("/api/v1/voice/sync", {});
+                  notify(
+                    "Thread instructions are up to date. Stop and restart voice to use them.",
+                  );
+                } catch (e: any) {
+                  setError(e.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Update Thread instructions
+            </button>
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                try {
                   const result = await api("/api/v1/voice/test", {});
                   setVerified(result.verified);
                   notify(
@@ -168,7 +188,9 @@ export function VoiceSettings({ notify }: { notify: (s: string) => void }) {
         Thread-created agents require signed sessions, allow interruption,
         disable stored audio, and request one-day provider transcript retention.
         Each voice conversation is limited to 15 minutes, with 20 starts per
-        day. Local diary retention is a separate choice.
+        day. Local diary retention is a separate choice. Thread updates its
+        encounter instructions on the next voice connection while preserving
+        your agent’s voice and model settings.
       </p>
       <a
         className="text-button"

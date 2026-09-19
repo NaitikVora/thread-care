@@ -84,3 +84,19 @@ export interface TrustedPerson {
   revision: number;
   updatedAt: string;
 }
+export interface CurrentEncounter {
+  id: string;
+  person: TrustedPerson;
+  observationId: string | null;
+  confirmedAt: string;
+  validUntil: string;
+  basis: "patient-confirmed";
+}
+export interface LiveContext {
+  sessionId: string;
+  currentEncounter: CurrentEncounter | null;
+  latestObservation: DiaryEvent | null;
+  observationAgeSeconds: number | null;
+  identityMode: "patient-confirmation";
+  notice: string;
+}

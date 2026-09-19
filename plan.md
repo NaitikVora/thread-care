@@ -14,6 +14,14 @@ Product: patient-controlled camera sessions, real ElevenLabs voice, a retrievabl
 - [ ] Verify live ElevenLabs audio after the user connects their account; complete target camera/microphone checks.
 - [x] Push reviewed source changes to the existing private GitHub repository (main).
 
+## Connected-encounter fix
+- [x] Explicit current-encounter database record linked to the session, person and recent camera observation.
+- [x] Shared current context for voice tools, camera updates and patient text requests.
+- [x] Voice-triggered photo choices, confirmed-person card, clear/end behavior and bounded expiry.
+- [x] Upgrade existing ElevenLabs agent instructions through the official SDK; preserve voice/model/tools.
+- [x] Regression tests for stale/cross-session identities, restart, correction/deletion, failed upgrades and interrupted answers.
+- [ ] Automatic face matching remains off under the patient's original confirmation preference.
+
 ## Acceptance flow
 1. Connect OpenAI and ElevenLabs under Settings. Create a private Thread voice agent with its client tools.
 2. Add a consented familiar-person profile and labeled photo.

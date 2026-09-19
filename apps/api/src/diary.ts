@@ -5,6 +5,7 @@ import type {
   DiarySession,
   DiaryEvent,
   TrustedPerson,
+  LiveContext,
 } from "../../../packages/contracts/src/diary";
 import type { ImageStorage } from "./storage";
 export const fingerprint = (value: unknown) =>
@@ -66,6 +67,9 @@ export class DiaryRepository {
   ) {}
   async init() {
     await this.db.query(
+      "UPDATE current_encounters SET ended_at=now(),end_reason='server-restarted' WHERE ended_at IS NULL",
+    );
+    await this.db.query(
       "UPDATE diary_sessions SET status='interrupted' WHERE status='active'",
     );
     await this.db.query(
@@ -104,6 +108,65 @@ export class DiaryRepository {
     return (
       await this.db.query("SELECT * FROM trusted_people ORDER BY name LIMIT 50")
     ).rows.map(personView);
+  }
+  async liveContext(sessionId: string): Promise<LiveContext> {
+    const session = await this.session(sessionId);
+    const active =
+      session.status === "active" &&
+      Date.parse(session.heartbeatAt) >= Date.now() - 90000;
+    const [encounters, observations] = await Promise.all([
+      active
+        ? this.db.query(
+            `SELECT c.*,row_to_json(p) AS person FROM current_encounters c
+         JOIN trusted_people p ON p.id=c.person_id
+         JOIN diary_events e ON e.id=c.id
+         WHERE c.session_id=$1 AND c.ended_at IS NULL AND c.valid_until>now()
+         AND e.expires_at>now() AND e.status='ready' AND e.review='confirmed'`,
+            [sessionId],
+          )
+        : Promise.resolve({ rows: [] }),
+      this.db.query(
+        "SELECT * FROM diary_events WHERE session_id=$1 AND kind='camera' AND status='ready' AND expires_at>now() ORDER BY captured_at DESC LIMIT 1",
+        [sessionId],
+      ),
+    ]);
+    const c = encounters.rows[0];
+    const latest = observations.rows[0]
+      ? eventView(observations.rows[0])
+      : null;
+    return {
+      sessionId,
+      currentEncounter: c
+        ? {
+            id: c.id,
+            person: personView(c.person),
+            observationId: c.observation_id,
+            confirmedAt: iso(c.confirmed_at),
+            validUntil: iso(c.valid_until),
+            basis: "patient-confirmed",
+          }
+        : null,
+      latestObservation: latest,
+      observationAgeSeconds: latest
+        ? Math.max(
+            0,
+            Math.floor((Date.now() - Date.parse(latest.capturedAt)) / 1000),
+          )
+        : null,
+      identityMode: "patient-confirmation",
+      notice:
+        "A current encounter means the patient confirmed who is with them, not that any visible face was matched. Use the confirmation time and profile. A past diary visit does not establish current presence. A camera observation describes one timestamped still only.",
+    };
+  }
+  async endEncounter(
+    sessionId: string,
+    reason: string,
+    tx: Queryable = this.db,
+  ) {
+    await tx.query(
+      "UPDATE current_encounters SET ended_at=now(),end_reason=$2 WHERE session_id=$1 AND ended_at IS NULL",
+      [sessionId, reason],
+    );
   }
   async search(
     query = "",
@@ -173,6 +236,9 @@ export class DiaryRepository {
   }
   async cleanup() {
     await this.sessions();
+    await this.db.query(
+      "UPDATE current_encounters c SET ended_at=now(),end_reason='expired-or-interrupted' WHERE ended_at IS NULL AND (valid_until<=now() OR NOT EXISTS(SELECT 1 FROM diary_sessions s WHERE s.id=c.session_id AND s.status='active'))",
+    );
     const expired = (
       await this.db.query(
         "DELETE FROM diary_events WHERE expires_at<now() RETURNING blob_key",

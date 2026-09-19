@@ -151,6 +151,8 @@ export async function registerDiary(
           operation === "end" ? new Date() : null,
         ],
       );
+      if (operation === "pause" || operation === "end")
+        await diary.endEncounter(id, operation, tx);
       return diary.session(id, tx);
     });
     if (operation === "pause" || operation === "end")
@@ -327,6 +329,19 @@ export async function registerDiary(
       )
     ).rows.map(eventView),
   );
+  app.get("/api/v1/diary/session/:id/context", async (req: any) =>
+    diary.liveContext(uuid.parse(req.params.id)),
+  );
+  app.post("/api/v1/diary/session/:id/encounter/end", async (req: any) => {
+    const sessionId = uuid.parse(req.params.id),
+      b = z.object({ encounterId: uuid }).parse(req.body);
+    await diary.session(sessionId);
+    await db.query(
+      "UPDATE current_encounters SET ended_at=now(),end_reason='patient-ended' WHERE id=$1 AND session_id=$2 AND ended_at IS NULL",
+      [b.encounterId, sessionId],
+    );
+    return diary.liveContext(sessionId);
+  });
   app.post("/api/v1/diary/note", async (req) => {
     const b = z
       .object({
@@ -406,6 +421,11 @@ export async function registerDiary(
           ],
         )
       ).rows[0];
+      if (old.kind === "person")
+        await tx.query(
+          "UPDATE current_encounters SET ended_at=now(),end_reason='record-reviewed' WHERE id=$1 AND ended_at IS NULL",
+          [id],
+        );
       await tx.query("DELETE FROM diary_digests");
       return eventView(r);
     });
@@ -599,49 +619,91 @@ export async function registerDiary(
   });
   app.post("/api/v1/diary/person", async (req) => {
     const b = z
-        .object({
-          id: uuid,
-          sessionId: uuid,
-          personId: uuid,
-          confirmed: z.literal(true),
-        })
-        .parse(req.body),
-      s = await diary.active(b.sessionId),
-      p = (await diary.people()).find((p) => p.id === b.personId);
-    if (!p)
-      throw new HttpError(404, "Choose a person from the current care circle.");
-    const hash = fingerprint(b),
-      prior = (await db.query("SELECT * FROM diary_events WHERE id=$1", [b.id]))
-        .rows[0];
-    if (prior) {
-      if (prior.fingerprint !== hash)
-        throw new HttpError(409, "This confirmation ID was already used.");
-      return eventView(prior);
-    }
-    const r = (
-      await db.query(
-        "INSERT INTO diary_events(id,session_id,kind,status,review,title,summary,category,tags,details,fingerprint,captured_at,expires_at) VALUES($1,$2,'person','ready','confirmed',$3,$4,'connection',$5,$6,$7,now(),$8) RETURNING *",
-        [
-          b.id,
-          s.id,
-          "Time with " + p.name,
-          "You confirmed that " +
-            p.name +
-            ", your " +
-            p.relationship +
-            ", is with you.",
-          JSON.stringify([p.name, p.relationship]),
-          JSON.stringify({
-            personId: p.id,
-            confirmation:
-              "Patient selected a labeled photo; no face recognition was performed.",
-          }),
-          hash,
-          new Date(Date.now() + s.policy.retentionDays * 86400000),
-        ],
+      .object({
+        id: uuid,
+        sessionId: uuid,
+        personId: uuid,
+        confirmed: z.literal(true),
+        observationId: uuid.nullable().default(null),
+      })
+      .parse(req.body);
+    return db.transaction(async (tx) => {
+      await tx.query("SELECT id FROM app_state WHERE id=1 FOR UPDATE");
+      const s = await diary.session(b.sessionId, tx);
+      if (
+        s.status !== "active" ||
+        Date.parse(s.heartbeatAt) < Date.now() - 90000
       )
-    ).rows[0];
-    return eventView(r);
+        throw new HttpError(
+          409,
+          "Resume the diary session before confirming a person.",
+        );
+      const hash = fingerprint(b);
+      const prior = (
+        await tx.query("SELECT * FROM diary_events WHERE id=$1", [b.id])
+      ).rows[0];
+      if (prior) {
+        if (prior.fingerprint !== hash)
+          throw new HttpError(409, "This confirmation ID was already used.");
+        return eventView(prior);
+      }
+      const row = (
+        await tx.query("SELECT * FROM trusted_people WHERE id=$1", [b.personId])
+      ).rows[0];
+      if (!row)
+        throw new HttpError(
+          404,
+          "Choose a person from the current care circle.",
+        );
+      const p = personView(row);
+      const observation = b.observationId
+        ? (
+            await tx.query(
+              "SELECT id FROM diary_events WHERE id=$1 AND session_id=$2 AND kind='camera' AND status='ready' AND expires_at>now() AND captured_at>now()-interval '2 minutes'",
+              [b.observationId, s.id],
+            )
+          ).rows[0]
+        : null;
+      if (b.observationId && !observation)
+        throw new HttpError(
+          409,
+          "That camera view is no longer current. Capture again or confirm without a camera link.",
+        );
+      await diary.endEncounter(s.id, "replaced", tx);
+      const validUntil = new Date(Date.now() + 15 * 60000);
+      const r = (
+        await tx.query(
+          "INSERT INTO diary_events(id,session_id,kind,status,review,title,summary,category,tags,details,fingerprint,captured_at,expires_at) VALUES($1,$2,'person','ready','confirmed',$3,$4,'connection',$5,$6,$7,now(),$8) RETURNING *",
+          [
+            b.id,
+            s.id,
+            "Time with " + p.name,
+            "You confirmed that " +
+              p.name +
+              ", your " +
+              p.relationship +
+              ", is with you.",
+            JSON.stringify([p.name, p.relationship]),
+            JSON.stringify({
+              personId: p.id,
+              observationId: observation?.id || null,
+              profileRevision: p.revision,
+              validUntil: validUntil.toISOString(),
+              confirmation:
+                "Patient selected a labeled photo; no face recognition was performed.",
+            }),
+            hash,
+            new Date(Date.now() + s.policy.retentionDays * 86400000),
+          ],
+        )
+      ).rows[0];
+      await tx.query(
+        "INSERT INTO current_encounters(id,session_id,person_id,observation_id,valid_until) VALUES($1,$2,$3,$4,$5)",
+        [b.id, s.id, p.id, observation?.id || null, validUntil],
+      );
+      await tx.query("DELETE FROM diary_digests");
+      return eventView(r);
+    });
   });
   app.addHook("onClose", async () => {
     for (const j of controllers.values()) j.ctrl.abort();

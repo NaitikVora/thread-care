@@ -53,6 +53,7 @@ const voice: VoiceGateway = {
     retentionDays: 1,
   }),
   create: async () => "agent_test_fixture",
+  syncInstructions: async () => {},
   sign: async () =>
     "wss://api.elevenlabs.io/v1/convai/conversation?fixture=not-real",
 };
@@ -549,6 +550,10 @@ test("private household sessions and patient role block caregiver mutations", as
     403,
   );
   assert.equal((await f.send("/api/v1/people", {}, cookie)).statusCode, 403);
+  assert.equal(
+    (await f.send("/api/v1/voice/sync", {}, cookie)).statusCode,
+    403,
+  );
   await f.send("/api/auth/logout", {}, cookie);
   assert.equal(
     (await f.send("/api/v1/people", undefined, cookie)).statusCode,
@@ -623,4 +628,353 @@ test("a failed run insert releases the agent concurrency slot", async (t) => {
     ).statusCode,
     200,
   );
+});
+
+test("camera, confirmed person and voice share current context independent of search wording", async (t) => {
+  let agentContext: any;
+  const f = await setup(t, {
+    fetcher: async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      if (body.text?.format?.name === "thread_agent_reply") {
+        agentContext = JSON.parse(
+          body.input.find((i: any) => i.role === "developer").content,
+        );
+        return response({
+          reply: "You confirmed that Maya is with you.",
+          actions: [],
+        });
+      }
+      return response(observation);
+    },
+  });
+  const s = await f.start();
+  const person = (
+    await f.send("/api/v1/people", {
+      name: "Maya Fixture",
+      relationship: "daughter",
+      description: "Calls each evening",
+      author: "QA",
+      consent: true,
+    })
+  ).json();
+  await f.send("/api/v1/people", {
+    name: "Sam Fixture",
+    relationship: "son",
+    author: "QA",
+    consent: true,
+  });
+  const view = (
+    await f.send("/api/v1/diary/capture", {
+      id: randomUUID(),
+      sessionId: s.id,
+      capturedAt: new Date().toISOString(),
+      image: png,
+    })
+  ).json();
+  let context = (
+    await f.send("/api/v1/voice/context", {
+      sessionId: s.id,
+      query: "Who is it?",
+    })
+  ).json();
+  assert.equal(context.live.currentEncounter, null);
+  assert.equal(context.people.length, 2);
+  assert.equal(context.live.latestObservation.id, view.id);
+  const confirmation = {
+    id: randomUUID(),
+    sessionId: s.id,
+    personId: person.id,
+    observationId: view.id,
+    confirmed: true,
+  };
+  const saved = await f.send("/api/v1/diary/person", confirmation);
+  assert.equal(saved.statusCode, 200, saved.body);
+  assert.equal(
+    (await f.send("/api/v1/diary/person", confirmation)).json().id,
+    saved.json().id,
+  );
+  context = (
+    await f.send("/api/v1/voice/context", {
+      sessionId: s.id,
+      query: "Who is it?",
+    })
+  ).json();
+  assert.equal(context.live.currentEncounter.person.name, "Maya Fixture");
+  assert.equal(
+    context.live.currentEncounter.person.description,
+    "Calls each evening",
+  );
+  assert.equal(context.live.currentEncounter.observationId, view.id);
+  assert.equal(context.live.latestObservation.review, "unreviewed");
+  const answer = await f.send("/api/v1/agent", {
+    id: randomUUID(),
+    sessionId: s.id,
+    message: "Who is with me?",
+    requireReview: true,
+  });
+  assert.equal(answer.statusCode, 200, answer.body);
+  assert.equal(agentContext.live.currentEncounter.person.id, person.id);
+  assert.equal(agentContext.live.latestObservation.id, view.id);
+  await f.send("/api/v1/diary/sessions/" + s.id, { operation: "pause" });
+  await f.send("/api/v1/diary/sessions/" + s.id, { operation: "resume" });
+  assert.equal(
+    (await f.send("/api/v1/diary/session/" + s.id + "/context")).json()
+      .currentEncounter,
+    null,
+  );
+  assert.equal((await f.send("/api/v1/diary?q=Maya")).json().events.length, 1);
+});
+
+test("encounter replacement, expiry, review and deletion cannot leave a stale current identity", async (t) => {
+  const f = await setup(t),
+    s = await f.start();
+  const person = (
+    await f.send("/api/v1/people", {
+      name: "Maya Fixture",
+      relationship: "daughter",
+      author: "QA",
+      consent: true,
+    })
+  ).json();
+  const confirm = async () => {
+    const b = {
+      id: randomUUID(),
+      sessionId: s.id,
+      personId: person.id,
+      confirmed: true,
+    };
+    const r = await f.send("/api/v1/diary/person", b);
+    assert.equal(r.statusCode, 200, r.body);
+    return { b, event: r.json() };
+  };
+  const context = async () =>
+    (await f.send("/api/v1/diary/session/" + s.id + "/context")).json();
+  const a = await confirm(),
+    b = await confirm();
+  await f.send("/api/v1/diary/session/" + s.id + "/encounter/end", {
+    encounterId: a.event.id,
+  });
+  assert.equal((await context()).currentEncounter.id, b.event.id);
+  await f.send("/api/v1/diary/session/" + s.id + "/encounter/end", {
+    encounterId: b.event.id,
+  });
+  await f.send("/api/v1/diary/person", b.b);
+  assert.equal(
+    (await context()).currentEncounter,
+    null,
+    "idempotent retry must not reactivate an ended encounter",
+  );
+  const c = await confirm();
+  await f.db.query(
+    "UPDATE current_encounters SET valid_until=now()-interval '1 second' WHERE id=$1",
+    [c.event.id],
+  );
+  assert.equal((await context()).currentEncounter, null);
+  const d = await confirm();
+  await f.send("/api/v1/diary/" + d.event.id + "/review", {
+    revision: 1,
+    title: "Correction",
+    summary: "I was mistaken about who visited.",
+    author: "QA",
+  });
+  assert.equal((await context()).currentEncounter, null);
+  const e = await confirm();
+  await f.send("/api/v1/diary/" + e.event.id + "/delete", {});
+  assert.equal((await context()).currentEncounter, null);
+  await confirm();
+  await f.send("/api/v1/people/" + person.id + "/delete", {});
+  assert.equal((await context()).currentEncounter, null);
+});
+
+test("confirmation rejects another session's or stale camera view and survives restart only as history", async (t) => {
+  const f = await setup(t),
+    first = await f.start();
+  const person = (
+    await f.send("/api/v1/people", {
+      name: "Maya Fixture",
+      relationship: "daughter",
+      author: "QA",
+      consent: true,
+    })
+  ).json();
+  const old = (
+    await f.send("/api/v1/diary/capture", {
+      id: randomUUID(),
+      sessionId: first.id,
+      capturedAt: new Date().toISOString(),
+      image: png,
+    })
+  ).json();
+  await f.send("/api/v1/diary/sessions/" + first.id, { operation: "end" });
+  const next = await f.start();
+  const b = {
+    id: randomUUID(),
+    sessionId: next.id,
+    personId: person.id,
+    observationId: old.id,
+    confirmed: true,
+  };
+  assert.equal((await f.send("/api/v1/diary/person", b)).statusCode, 409);
+  const view = (
+    await f.send("/api/v1/diary/capture", {
+      id: randomUUID(),
+      sessionId: next.id,
+      capturedAt: new Date().toISOString(),
+      image: png,
+    })
+  ).json();
+  await f.db.query(
+    "UPDATE diary_events SET captured_at=now()-interval '3 minutes' WHERE id=$1",
+    [view.id],
+  );
+  assert.equal(
+    (await f.send("/api/v1/diary/person", { ...b, observationId: view.id }))
+      .statusCode,
+    409,
+  );
+  assert.equal(
+    (await f.send("/api/v1/diary/person", { ...b, observationId: null }))
+      .statusCode,
+    200,
+  );
+  await new DiaryRepository(f.db, f.storage).init();
+  await f.send("/api/v1/diary/sessions/" + next.id, { operation: "resume" });
+  assert.equal(
+    (await f.send("/api/v1/diary/session/" + next.id + "/context")).json()
+      .currentEncounter,
+    null,
+  );
+  assert.equal((await f.send("/api/v1/diary?q=Maya")).json().events.length, 1);
+});
+
+test("existing ElevenLabs agent instructions upgrade once without replacing voice or model", async () => {
+  const original = globalThis.fetch;
+  let updates = 0;
+  const remote = {
+    agent_id: "agent_contract",
+    name: "Thread fixture",
+    metadata: { created_at_unix_secs: 1, updated_at_unix_secs: 1 },
+    conversation_config: {
+      tts: { voice_id: "original_voice" },
+      agent: {
+        prompt: { prompt: "Existing custom instruction.", llm: "gpt-4.1-mini" },
+      },
+    },
+  };
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === "PATCH") {
+      updates++;
+      const body = JSON.parse(String(init.body));
+      assert.deepEqual(Object.keys(body.conversation_config), ["agent"]);
+      assert.deepEqual(Object.keys(body.conversation_config.agent.prompt), [
+        "prompt",
+      ]);
+      assert.match(
+        body.conversation_config.agent.prompt.prompt,
+        /Existing custom instruction/,
+      );
+      assert.match(
+        body.conversation_config.agent.prompt.prompt,
+        /currentEncounter/,
+      );
+      remote.conversation_config.agent.prompt.prompt =
+        body.conversation_config.agent.prompt.prompt;
+    }
+    return new Response(JSON.stringify(remote));
+  };
+  try {
+    const sdk = new ElevenGateway("test-only-never-real-key");
+    await sdk.syncInstructions("agent_contract");
+    await sdk.syncInstructions("agent_contract");
+    assert.equal(updates, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("voice instruction upgrade failures cannot silently start the outdated agent", async (t) => {
+  let signed = 0,
+    syncs = 0;
+  const f = await setup(t, {
+    voiceGateway: () => ({
+      ...voice,
+      syncInstructions: async () => {
+        syncs++;
+        if (syncs === 1) throw new Error("Controlled provider failure");
+      },
+      sign: async () => {
+        signed++;
+        return voice.sign("fixture");
+      },
+    }),
+  });
+  const s = await f.start();
+  await f.send("/api/v1/voice/connect", {
+    apiKey: "test-only-eleven-key",
+    createAgent: true,
+  });
+  assert.equal(
+    (await f.send("/api/v1/voice/session", { sessionId: s.id })).statusCode,
+    502,
+  );
+  assert.equal(signed, 0);
+  assert.equal(
+    (await f.send("/api/v1/voice/session", { sessionId: s.id })).statusCode,
+    200,
+  );
+  assert.equal(
+    (await f.send("/api/v1/voice/session", { sessionId: s.id })).statusCode,
+    200,
+  );
+  assert.equal(syncs, 2);
+});
+
+test("an answer about a current person is rejected if the encounter ends during generation", async (t) => {
+  let entered!: () => void, release!: () => void;
+  const started = new Promise<void>((r) => {
+    entered = r;
+  });
+  const held = new Promise<void>((r) => {
+    release = r;
+  });
+  const f = await setup(t, {
+    fetcher: async () => {
+      entered();
+      await held;
+      return response({ reply: "Maya is with you.", actions: [] });
+    },
+  });
+  const s = await f.start();
+  const person = (
+    await f.send("/api/v1/people", {
+      name: "Maya Fixture",
+      relationship: "daughter",
+      author: "QA",
+      consent: true,
+    })
+  ).json();
+  const encounter = (
+    await f.send("/api/v1/diary/person", {
+      id: randomUUID(),
+      sessionId: s.id,
+      personId: person.id,
+      confirmed: true,
+    })
+  ).json();
+  const pending = f.send("/api/v1/agent", {
+    id: randomUUID(),
+    sessionId: s.id,
+    message: "Who is with me?",
+    requireReview: true,
+  });
+  // Start the inject request before awaiting the provider rendezvous.
+  const request = Promise.resolve(pending);
+  await started;
+  await f.send("/api/v1/diary/session/" + s.id + "/encounter/end", {
+    encounterId: encounter.id,
+  });
+  release();
+  const result = await request;
+  assert.equal(result.statusCode, 409, result.body);
+  assert.match(result.body, /Who is with you changed/);
 });
