@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Thread — your daily companion</title>
-  <meta name="description" content="A browser prototype for familiar routines, memory bookmarks, and caregiver support. No glasses required.">
+  <title>RecallAR — Caregiver Dashboard</title>
+  <meta name="description" content="RecallAR's caregiver web dashboard: see John's day, and personalize his people, memories, objects, and routines.">
   <meta name="theme-color" content="#122c34">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23122c34'/%3E%3Cpath d='M19 21h20a9 9 0 0 1 0 18H25a9 9 0 0 1 0-18m7-9v40' fill='none' stroke='%239de2d1' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
@@ -11,45 +11,32 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <aside class="sidebar">
-    <a class="brand" href="./" aria-label="Thread home"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h20a8 8 0 0 1 0 16H18a8 8 0 0 1 0-16m6-9v36"/></svg><span>thread<span class="brand-dot">.</span></span></a>
-    <div class="workspace-label">DAILY COMPANION</div>
+    <a class="brand" href="./" aria-label="RecallAR home"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h20a8 8 0 0 1 0 16H18a8 8 0 0 1 0-16m6-9v36"/></svg><span>recall<span class="brand-dot">AR</span></span></a>
+    <div class="workspace-label">CAREGIVER DASHBOARD</div>
     <nav aria-label="Main navigation">
-      <button class="nav-item active" data-view="companion" aria-current="page"><span data-icon="spark"></span>Companion</button>
-      <button class="nav-item" data-view="care"><span data-icon="people"></span>Care circle<span id="help-count" class="count" hidden>0</span></button>
+      <button class="nav-item active" data-view="overview" aria-current="page"><span data-icon="grid"></span>Overview</button>
+      <button class="nav-item" data-view="people"><span data-icon="people"></span>People</button>
+      <button class="nav-item" data-view="memories"><span data-icon="image"></span>Memories</button>
+      <button class="nav-item" data-view="objects"><span data-icon="box"></span>Objects</button>
       <button class="nav-item" data-view="activity"><span data-icon="clock"></span>Activity</button>
+      <button class="nav-item" data-view="settings"><span data-icon="gear"></span>Settings</button>
     </nav>
-    <div class="sidebar-bottom"><div class="device-note"><span data-icon="glasses"></span><strong>No glasses needed</strong><p>Your browser is the companion for this prototype.</p></div><div class="profile"><span class="avatar" id="profile-initial">A</span><div><strong id="profile-name">Alex Morgan</strong><small>Sample profile</small></div></div></div>
+    <div class="sidebar-bottom">
+      <div class="device-note"><span data-icon="glasses"></span><strong id="patient-note-name">Caring for John Miller</strong><p id="patient-note-detail">74 years old</p></div>
+      <div class="profile"><span class="avatar" id="profile-initial">S</span><div><strong id="profile-name">Sarah Miller</strong><small>Caregiver</small></div></div>
+    </div>
   </aside>
   <main id="main">
-    <header class="page-header"><div><div class="eyebrow" id="date-label">YOUR DAY, AT YOUR PACE</div><h1 id="page-title">Your companion</h1></div><span class="prototype-badge"><span data-icon="monitor"></span>Browser prototype</span></header>
-    <div id="storage-warning" class="notice" role="status" hidden></div>
-    <section id="view-companion" class="view">
-      <div class="companion-grid">
-        <section class="display-panel" aria-label="Simulated glasses display">
-          <div class="panel-top"><span><span data-icon="glasses"></span>COMPANION VIEW</span><span class="muted-on-dark">Simulated display</span></div>
-          <div class="glasses-content" id="glasses-content"><div class="routine-kicker">A FAMILIAR ROUTINE</div><span class="display-icon" data-icon="sun"></span><h2>One step<br>at a time.</h2><p>Choose a routine below.<br>We’ll take it from there.</p></div>
-          <div id="routine-controls" class="display-actions"><button class="primary light" id="start-default">Start a routine <span data-icon="arrow"></span></button></div>
-          <div class="display-footer"><span>One clear instruction. Room to pause.</span><button id="sound-toggle" aria-pressed="false" aria-label="Turn spoken replies on"><span data-icon="volume"></span><span>Sound off</span></button></div>
-        </section>
-        <section class="conversation-panel card" aria-labelledby="conversation-title">
-          <div class="section-title"><div><span class="small-label">HERE WHEN YOU NEED ME</span><h2 id="conversation-title">Let’s talk</h2></div><span class="assistant-mark" data-icon="spark"></span></div>
-          <div class="messages" id="messages" role="log" aria-label="Conversation" aria-live="polite"><div class="message assistant">Hi Alex. I can help you pick up where you left off. What would you like to do?</div></div>
-          <div class="quick-prompts"><button data-prompt="What was I doing?">What was I doing?</button><button data-prompt="When is my next visit?">My next visit</button><button data-prompt="I need help">I need help</button></div>
-          <form id="chat-form" class="chat-form"><label class="sr-only" for="chat-input">Message your companion</label><input id="chat-input" maxlength="500" placeholder="Type a message…" autocomplete="off"><button type="button" id="mic-button" class="icon-button" aria-label="Start voice input"><span data-icon="mic"></span></button><button type="submit" class="send-button" aria-label="Send message"><span data-icon="arrow"></span></button></form>
-          <p class="input-note" id="voice-note">Guided commands · no AI model connected. Voice uses your browser’s speech service.</p>
-        </section>
-      </div>
-      <section class="routines-section"><div class="section-heading"><h2>Familiar routines</h2><span>Choose what feels right</span></div><div id="routine-list" class="routine-grid"></div></section>
-      <section class="memory-strip card"><div class="memory-symbol" data-icon="bookmark"></div><div class="memory-copy"><h2>A place to keep your thought</h2><p id="current-intention">Save what you’re about to do, so it’s here when you need it.</p></div><button class="secondary" id="open-memory">Remember something <span data-icon="plus"></span></button></section>
-    </section>
-    <section id="view-care" class="view" hidden></section>
-    <section id="view-activity" class="view" hidden></section>
-    <footer class="page-footer"><span>Designed for a little more independence.</span><button id="about-button">About this prototype <span data-icon="info"></span></button></footer>
+    <header class="page-header"><div><div class="eyebrow" id="date-label">JOHN'S DAY</div><h1 id="page-title">Overview</h1></div><span class="prototype-badge"><span data-icon="monitor"></span>Caregiver dashboard</span></header>
+    <div id="view-overview" class="view"></div>
+    <div id="view-people" class="view" hidden></div>
+    <div id="view-memories" class="view" hidden></div>
+    <div id="view-objects" class="view" hidden></div>
+    <div id="view-activity" class="view" hidden></div>
+    <div id="view-settings" class="view" hidden></div>
+    <footer class="page-footer"><span>Descriptive activity, never a diagnosis.</span><button id="about-button">About this dashboard <span data-icon="info"></span></button></footer>
   </main>
-  <dialog id="memory-dialog"><form id="memory-form"><div class="dialog-heading"><h2>Keep a thought</h2><button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button></div><p>Tell me what you’re about to do or where you put something.</p><label for="memory-type">What would you like to remember?</label><select id="memory-type"><option value="intention">An intention</option><option value="object">Where I put something</option></select><div id="intention-fields"><label for="intention-input">I’m about to…</label><input id="intention-input" maxlength="240" placeholder="Get my blue cardigan"></div><div id="object-fields" hidden><label for="object-input">Object</label><input id="object-input" maxlength="80" placeholder="My keys"><label for="location-input">Where you put it</label><input id="location-input" maxlength="180" placeholder="In the bowl by the front door"></div><div class="dialog-actions"><button type="button" class="secondary" data-close-dialog>Cancel</button><button class="primary" type="submit">Save thought</button></div></form></dialog>
-  <dialog id="about-dialog"><div class="dialog-heading"><h2>About Thread</h2><button class="icon-button" data-close-dialog aria-label="Close">×</button></div><p>A working browser prototype for routine guidance and memory support. The assistant uses local command matching, not a general-purpose AI model.</p><p>Demo data stays in this browser. Care requests appear in Care circle and other tabs on this device; they do not send messages or call anyone.</p><p>Voice input uses your browser’s speech service, which may process audio remotely. It starts only when you press the microphone. No camera is used.</p><p>This prototype has not been tested as a medical or emergency service, or validated on Meta glasses.</p><button class="primary" data-close-dialog>Got it</button></dialog>
-  <dialog id="reset-dialog"><h2>Reset this demo?</h2><p>This removes the routines, notes, messages, and requests saved by this prototype in this browser, and restores the sample profile.</p><div class="dialog-actions"><button class="secondary" data-close-dialog>Keep my data</button><button class="danger" id="confirm-reset">Reset demo</button></div></dialog>
-  <div id="toast" role="status" hidden></div>
+  <dialog id="about-dialog"><div class="dialog-heading"><h2>About this dashboard</h2><button class="icon-button" data-close-dialog aria-label="Close">×</button></div><p>RecallAR turns John&rsquo;s people, memories, and everyday objects into gentle, personalized activities on his phone. This dashboard shows what he did today.</p><p>Everything here is descriptive, not diagnostic: completed activities, hints used, and questions asked — never a clinical assessment.</p><p>This is a hackathon prototype using seeded demo data. No real patient data is stored.</p><button class="primary" data-close-dialog>Got it</button></dialog>
   <script type="module" src="./app.js"></script>
   <script type="module" src="./controller.js"></script>
 </body>
