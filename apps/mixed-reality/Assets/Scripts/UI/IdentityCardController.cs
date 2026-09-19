@@ -19,6 +19,7 @@ namespace RecallAR.UI
         [SerializeField] private Button rememberButton;
         [SerializeField] private Text rememberButtonLabel;
         [SerializeField] private MemoryCardController memoryCard;
+        [SerializeField] private SimulatedPersonRecognitionProvider personRecognition;
 
         private RecognizablePerson currentPerson;
 
@@ -27,15 +28,23 @@ namespace RecallAR.UI
         /// pop the card.</summary>
         public bool Suppressed { get; set; }
 
-        public void Bind(IPersonRecognitionProvider provider)
-        {
-            provider.PersonRecognized += HandlePersonRecognized;
-        }
-
         private void Awake()
         {
             if (rememberButton != null) rememberButton.onClick.AddListener(Remember);
+            if (personRecognition == null) personRecognition = FindFirstObjectByType<SimulatedPersonRecognitionProvider>();
             Hide();
+        }
+
+        // Subscribed at runtime: an event hooked up by the scene-builder script
+        // in the Editor is not serialized into the scene and would be lost.
+        private void OnEnable()
+        {
+            if (personRecognition != null) personRecognition.PersonRecognized += HandlePersonRecognized;
+        }
+
+        private void OnDisable()
+        {
+            if (personRecognition != null) personRecognition.PersonRecognized -= HandlePersonRecognized;
         }
 
         // The gaze camera locks the cursor for mouse-look, so keys back up

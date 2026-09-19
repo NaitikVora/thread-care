@@ -576,7 +576,7 @@ namespace RecallAR.EditorTools
             SetField(identityCard, "rememberButton", rememberButton);
             SetField(identityCard, "rememberButtonLabel", rememberButton.GetComponentInChildren<Text>());
             SetField(identityCard, "memoryCard", memoryCard);
-            identityCard.Bind(personProvider);
+            SetField(identityCard, "personRecognition", personProvider);
 
             var hintController = managers.AddComponent<HintController>();
             SetField(hintController, "panel", hintPanel.gameObject);
