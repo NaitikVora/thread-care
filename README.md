@@ -6,6 +6,8 @@ A local personal care companion for independence, dignity, and connection. Threa
 
 Open **Live companion** for camera sessions, a patient view with visual feedback, and real ElevenLabs voice. **Day diary** organizes recorded moments and supports search, correction and sourced recaps. **Familiar people** stores consented family profiles; the patient confirms a labeled person rather than the app guessing identities.
 
+Choose **Enter full screen** in Live companion to open the patient view and start camera and ElevenLabs voice together. On first use, choose session consent and allow browser camera/microphone access. **Exit & pause** or Escape stops both; unsupported browsers use a full-window view.
+
 Connect OpenAI and ElevenLabs in **Settings**. Choose **Connect & create voice agent** to provision a private agent with Thread's tools in your ElevenLabs account. Then start a patient-controlled diary session, choose retention, turn on the camera, and press **Talk with Thread**. OpenAI analyzes selected stills; ElevenLabs streams voice and retrieves context from the same database. No real-time integration is replaced with a mock response.
 
 When asked who is with the patient, Thread opens saved profile choices if no encounter is confirmed. A confirmation links the person to the session and recent camera observation, updates the voice context, and stays available for follow-up questions. Clear the encounter when the person leaves; confirmation also expires or clears on pause. This does not perform automatic face matching. Existing ElevenLabs agents receive the updated instructions at the next voice connection.

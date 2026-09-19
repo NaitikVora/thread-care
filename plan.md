@@ -22,6 +22,12 @@ Product: patient-controlled camera sessions, real ElevenLabs voice, a retrievabl
 - [x] Regression tests for stale/cross-session identities, restart, correction/deletion, failed upgrades and interrupted answers.
 - [ ] Automatic face matching remains off under the patient's original confirmation preference.
 
+## Full-screen patient view
+- [x] One action requests full screen and starts camera and ElevenLabs voice after session consent.
+- [x] Full-window fallback, visible device state, large controls, and explicit voice opt-in for existing sessions.
+- [x] Exit/Escape pauses both devices; pending session/device startup is cancelled.
+- [x] Regression checks cover activation timing, consent, independent device failure and cancellation.
+
 ## Acceptance flow
 1. Connect OpenAI and ElevenLabs under Settings. Create a private Thread voice agent with its client tools.
 2. Add a consented familiar-person profile and labeled photo.

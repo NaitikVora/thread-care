@@ -5,6 +5,7 @@
 | Feature | Status | Evidence / limits |
 |---|---|---|
 | Patient live camera view | Implemented with real browser camera | Preview/capture adapter, change-filtered still capture, visible controls, pause/end and interruption guards; latest target-device media check still outstanding |
+| Full-screen patient view | Implemented; browser startup/exit checked | One action starts camera and ElevenLabs after consent; full-window fallback, Escape/exit pause and pending-start cancellation. Browser QA reached the real camera permission request; native fullscreen and audible voice still require target-device verification. |
 | Virtual day diary | Implemented | PostgreSQL-compatible records, full-text GIN retrieval, time/category filters, retention, source images, corrections and export covered by integration tests |
 | Diary retrieval in patient view | Browser verified | Synthetic note saved through real UI, retrieved in Basic mode with timestamp/source; separate test database, no provider simulation |
 | OpenAI image observations and recaps | Implemented | Structured Responses API with no runtime fallback/mock; provider contract and fabricated-source rejection tests pass |
@@ -18,7 +19,7 @@
 | Meta native SDK | Not implemented or hardware verified | Browser adapter and documented native boundary; not presented as a working Meta integration |
 | Public hosting | Not performed | Only local preview and authorized GitHub source pushes |
 
-Current local verification: **67 application tests plus 1 real PostgreSQL test passing**, TypeScript check and production build passing. Test fixtures are confined to tests; no runtime AI or glasses response is mocked. The real app is at `http://127.0.0.1:4173`.
+Current local verification: **72 application tests passing** (the previous real PostgreSQL integration check also passed), TypeScript check and production build passing. Test fixtures are confined to tests; no runtime AI or glasses response is mocked. The real app is at `http://127.0.0.1:4173`.
 
 The connected-encounter backend and PostgreSQL checks passed on [GitHub run 35457287481](https://github.com/NaitikVora/thread-care/actions/runs/35457287481). The real connected ElevenLabs agent accepted the prompt-only update with voice/model/tool IDs preserved. Browser QA verified current-person confirmation, clearing, recovery and basic-mode identity answers against a separate synthetic household.
 
@@ -57,9 +58,11 @@ Last implementation pass: September 19, 2026. This file distinguishes code imple
 | Authentication / remote households | Single-household roles implemented | Multi-household accounts and distributed operation deferred |
 | Mobile and Meta | Deferred | Interfaces and migration plan only; no SDK or hardware claim |
 
+Fullscreen change: TypeScript and production build pass, with 26 targeted tests (20 day-companion, 4 fullscreen, 2 media lifecycle). Browser QA used a separate database without provider keys and verified the camera startup attempt, explicit missing-voice configuration message, and exit returning to camera/microphone off.
+
 ## Current verification count
 
-27 retained domain/provider tests, 19 durable-application tests, 19 day-companion tests and 2 media-lifecycle tests pass (67 application tests). One additional real PostgreSQL integration test passes. Build and type checking pass. The production container builds and starts against PostgreSQL 17 with its authentication boundary enforced. Earlier core QA used an explicitly controlled fixture. The current diary UI walkthrough uses the real application with a separate local database and no cloud key. The real application on port 4173 does not load fixtures.
+27 retained domain/provider tests, 19 durable-application tests, 20 day-companion tests, 2 media-lifecycle tests and 4 fullscreen tests pass (72 application tests). One additional real PostgreSQL integration test passes. Build and type checking pass. The production container builds and starts against PostgreSQL 17 with its authentication boundary enforced. Earlier core QA used an explicitly controlled fixture. The current diary UI walkthrough uses the real application with a separate local database and no cloud key. The real application on port 4173 does not load fixtures.
 
 ## Known product limits
 

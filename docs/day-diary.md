@@ -4,6 +4,12 @@ The patient explicitly starts, pauses, resumes and ends each session. Thread nev
 
 For longer sessions, configure `OPENAI_API_KEY` on the server: the browser-entered OpenAI connection expires after one hour. The default budget is 100 OpenAI requests per UTC day, shared by camera observations and other AI requests. Adjust `MAX_AI_CALLS_PER_DAY` and the capture interval to suit the intended session length and billing budget; reaching the limit pauses new AI work with a visible error.
 
+## Full-screen patient view
+
+**Enter full screen** starts or resumes a diary session and starts the browser camera and ElevenLabs voice together. A new session first asks for its recording choices; an existing session without voice permission requires an explicit opt-in that preserves its retention settings. Configure ElevenLabs in Settings first. Browser device permission prompts still require Allow.
+
+The patient view keeps captions, person confirmation, typed questions and large controls visible. **Exit & pause**, Escape, navigation or hiding the page stops media. Exiting while session creation or a device permission request is pending cancels device startup. If native full screen is unavailable, a full-window layout provides the same controls.
+
 ## Stored organization
 
 - `diary_sessions`: title, browser device source, consent/retention policy, status and heartbeat.

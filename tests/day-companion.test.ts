@@ -978,3 +978,21 @@ test("an answer about a current person is rejected if the encounter ends during 
   assert.equal(result.statusCode, 409, result.body);
   assert.match(result.body, /Who is with you changed/);
 });
+
+test("fullscreen voice opt-in preserves session retention and requires explicit consent", async (t) => {
+  const f = await setup(t),
+    s = await f.start({
+      voiceConsent: false,
+      retainFrames: true,
+      retentionDays: 1,
+    });
+  const path = "/api/v1/diary/sessions/" + s.id + "/voice-consent";
+  assert.equal((await f.send(path, { consent: false })).statusCode, 400);
+  const granted = await f.send(path, { consent: true });
+  assert.equal(granted.statusCode, 200, granted.body);
+  assert.equal(granted.json().policy.voiceConsent, true);
+  assert.equal(granted.json().policy.retainFrames, true);
+  assert.equal(granted.json().policy.retentionDays, 1);
+  await f.send("/api/v1/diary/sessions/" + s.id, { operation: "end" });
+  assert.equal((await f.send(path, { consent: true })).statusCode, 409);
+});

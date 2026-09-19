@@ -160,6 +160,21 @@ export async function registerDiary(
         if (job.session === id) job.ctrl.abort();
     return output;
   });
+  app.post("/api/v1/diary/sessions/:id/voice-consent", async (req: any) => {
+    const id = uuid.parse(req.params.id);
+    z.object({ consent: z.literal(true) }).parse(req.body);
+    return db.transaction(async (tx) => {
+      await tx.query("SELECT id FROM app_state WHERE id=1 FOR UPDATE");
+      const session = await diary.session(id, tx);
+      if (session.status === "ended")
+        throw new HttpError(409, "This session has ended. Start a new one.");
+      await tx.query(
+        "UPDATE diary_sessions SET policy=jsonb_set(policy,'{voiceConsent}','true') WHERE id=$1",
+        [id],
+      );
+      return diary.session(id, tx);
+    });
+  });
   app.post("/api/v1/diary/capture", async (req) => {
     const b = entrySchema.parse(req.body),
       image = decodeImage(b.image),

@@ -7,7 +7,7 @@ Thread uses the official `@elevenlabs/react` browser SDK (the exported `Conversa
 1. In Thread, open **Settings → ElevenLabs live voice**.
 2. Enter an ElevenLabs API key with Agents read/write access. Choose **Create a private Thread voice agent**. Optionally choose a voice ID from your account; blank uses the provider default.
 3. Choose **Connect & create voice agent**. This creates a real agent in your ElevenLabs account and saves its ID with an encrypted server-side key. Creation and subsequent conversations are not simulated.
-4. In **Live companion**, start a diary session with **Enable live voice** checked. Start the camera if you want visual context. Choose **Talk with Thread** and allow microphone access.
+4. In **Live companion**, start a diary session with **Enable live voice** checked. Start the camera if you want visual context. Choose **Talk with Thread** and allow microphone access. Alternatively, **Enter full screen** starts camera and voice together after the session consent choices.
 5. Speak normally. Spoken replies and captions arrive through ElevenLabs. You can interrupt by speaking, mute the microphone, stop voice, or pause the entire session.
 
 The key is encrypted using AES-256-GCM and the server's stable `SESSION_SECRET`; it is excluded from exports. Keep that secret with your backups or reconnect the provider after a secret rotation. Browser clients receive a temporary signed conversation URL, never the API key.

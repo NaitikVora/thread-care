@@ -17,9 +17,12 @@ import {
   Radio,
   Settings,
   LoaderCircle,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { api, stamp, timezone } from "./api";
 import { BrowserCamera, sceneChanged } from "./browser-camera";
+import { requestPatientFullscreen, startPatientDevices } from "./patient-view";
 import { Modal, ResultCard } from "./components";
 import type {
   DiarySession,
@@ -53,6 +56,12 @@ export function LiveCompanion({
     [choosingPerson, setChoosingPerson] = useState(false),
     [confirmingPerson, setConfirmingPerson] = useState(false),
     [setup, setSetup] = useState(false),
+    [setupFullscreen, setSetupFullscreen] = useState(false),
+    [voiceConsentSession, setVoiceConsentSession] =
+      useState<DiarySession | null>(null),
+    [patientView, setPatientView] = useState(false),
+    [launchingView, setLaunchingView] = useState(false),
+    [windowFallback, setWindowFallback] = useState(false),
     [cameraOn, setCameraOn] = useState(false),
     [starting, setStarting] = useState(false),
     [capturing, setCapturing] = useState(false),
@@ -72,7 +81,12 @@ export function LiveCompanion({
     [asking, setAsking] = useState(false),
     [sources, setSources] = useState<any[]>([]),
     [nextAt, setNextAt] = useState<number | null>(null);
-  const video = useRef<HTMLVideoElement>(null),
+  const root = useRef<HTMLDivElement>(null),
+    inPatientView = useRef(false),
+    launchGeneration = useRef(0),
+    nativeFullscreen = useRef(false),
+    voiceStarting = useRef(false),
+    video = useRef<HTMLVideoElement>(null),
     camera = useRef<BrowserCamera | null>(null),
     voice = useRef<VoiceConversation | null>(null),
     current = useRef(session),
@@ -193,6 +207,78 @@ export function LiveCompanion({
       setError(e.message);
     }
   }
+  function leavePatientView() {
+    inPatientView.current = false;
+    nativeFullscreen.current = false;
+    setPatientView(false);
+    void pause("Full-screen view closed. Camera and voice are paused.");
+    if (document.fullscreenElement === root.current)
+      void document.exitFullscreen().catch(() => {});
+  }
+  async function launchPatientView(prepare: () => Promise<DiarySession>) {
+    if (launchingView) return;
+    const generation = ++launchGeneration.current;
+    inPatientView.current = true;
+    setPatientView(true);
+    setWindowFallback(true);
+    setLaunchingView(true);
+    setError("");
+    // Must be requested in the actual click/submit gesture, before API awaits.
+    void requestPatientFullscreen(root.current).then((entered) => {
+      if (!inPatientView.current) {
+        if (entered && document.fullscreenElement === root.current)
+          void document.exitFullscreen().catch(() => {});
+        return;
+      }
+      setWindowFallback(
+        !entered || document.fullscreenElement !== root.current,
+      );
+    });
+    try {
+      await startPatientDevices({
+        prepare,
+        cancelled: () =>
+          generation !== launchGeneration.current || !mounted.current,
+        ready: (s) => {
+          updateSession(s);
+          setCaption("Starting your camera and voice companion…");
+        },
+        pause: async (s) => {
+          await api("/api/v1/diary/sessions/" + s.id, { operation: "pause" });
+        },
+        camera: () => (cameraOn ? Promise.resolve() : startCamera()),
+        voice: () => startVoice(),
+      });
+    } catch (e: any) {
+      if (generation === launchGeneration.current) setError(e.message);
+    } finally {
+      if (generation === launchGeneration.current) setLaunchingView(false);
+    }
+  }
+  function enterPatientView() {
+    const candidate = current.current
+      ? current.current.status === "ended"
+        ? null
+        : current.current
+      : sessions.find((s) => s.status === "active") ||
+        sessions.find((s) => s.status !== "ended");
+    if (!candidate) {
+      setSetupFullscreen(true);
+      setSetup(true);
+      return;
+    }
+    if (!candidate.policy.voiceConsent) {
+      setVoiceConsentSession(candidate);
+      return;
+    }
+    void launchPatientView(async () =>
+      candidate.status === "active"
+        ? candidate
+        : api<DiarySession>("/api/v1/diary/sessions/" + candidate.id, {
+            operation: "resume",
+          }),
+    );
+  }
   function stopCamera() {
     epoch.current++;
     camera.current?.stop();
@@ -202,6 +288,7 @@ export function LiveCompanion({
   }
   async function stopVoice() {
     voiceEpoch.current++;
+    voiceStarting.current = false;
     const call = voice.current;
     voice.current = null;
     setVoiceStatus("disconnected");
@@ -215,6 +302,8 @@ export function LiveCompanion({
       );
   }
   async function pause(reason = "Paused. Your place is saved.") {
+    launchGeneration.current++;
+    setLaunchingView(false);
     stopCamera();
     captureAbort.current?.abort();
     await stopVoice();
@@ -238,9 +327,30 @@ export function LiveCompanion({
           "Paused because this page is no longer visible. Resume when you’re ready.",
         );
     };
+    const fullscreenChanged = () => {
+      if (document.fullscreenElement === root.current) {
+        nativeFullscreen.current = true;
+        setWindowFallback(false);
+        if (!inPatientView.current)
+          void document.exitFullscreen().catch(() => {});
+      } else if (nativeFullscreen.current) leavePatientView();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (
+        event.key === "Escape" &&
+        inPatientView.current &&
+        !document.fullscreenElement &&
+        !root.current?.querySelector("dialog[open]")
+      )
+        leavePatientView();
+    };
     document.addEventListener("visibilitychange", hidden);
+    document.addEventListener("fullscreenchange", fullscreenChanged);
+    document.addEventListener("keydown", escape);
     return () => {
       mounted.current = false;
+      launchGeneration.current++;
+      inPatientView.current = false;
       epoch.current++;
       voiceEpoch.current++;
       camera.current?.stop();
@@ -254,8 +364,44 @@ export function LiveCompanion({
           operation: "pause",
         }).catch(() => {});
       document.removeEventListener("visibilitychange", hidden);
+      document.removeEventListener("fullscreenchange", fullscreenChanged);
+      document.removeEventListener("keydown", escape);
+      if (nativeFullscreen.current && document.fullscreenElement)
+        void document.exitFullscreen().catch(() => {});
     };
   }, []);
+  useEffect(() => {
+    if (!patientView || !root.current) return;
+    const overflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const siblings: { element: HTMLElement; inert: boolean }[] = [];
+    let child: HTMLElement = root.current;
+    for (
+      let parent = child.parentElement;
+      parent;
+      child = parent, parent = parent.parentElement
+    ) {
+      for (const element of Array.from(parent.children))
+        if (element !== child && element instanceof HTMLElement) {
+          siblings.push({ element, inert: element.inert });
+          element.inert = true;
+        }
+      if (parent === document.body) break;
+    }
+    document.body.style.overflow = "hidden";
+    root.current
+      .querySelector<HTMLButtonElement>(
+        ".patient-view-toolbar button:not(:disabled)",
+      )
+      ?.focus();
+    return () => {
+      document.body.style.overflow = overflow;
+      siblings.forEach(({ element, inert }) => {
+        element.inert = inert;
+      });
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [patientView]);
   useEffect(() => {
     if (session?.status !== "active") return;
     const id = setInterval(() => {
@@ -337,11 +483,17 @@ export function LiveCompanion({
         retainTranscript: f.get("transcript") === "on",
         voiceConsent: f.get("voice") === "on",
       };
-      const s = await api<DiarySession>("/api/v1/diary/sessions", {
-        id: crypto.randomUUID(),
-        title: f.get("title"),
-        policy,
-      });
+      const input = { id: crypto.randomUUID(), title: f.get("title"), policy };
+      if (setupFullscreen) {
+        setSetup(false);
+        setSetupFullscreen(false);
+        await launchPatientView(() =>
+          api<DiarySession>("/api/v1/diary/sessions", input),
+        );
+        await load();
+        return;
+      }
+      const s = await api<DiarySession>("/api/v1/diary/sessions", input);
       updateSession(s);
       setEvents([]);
       setSetup(false);
@@ -367,6 +519,8 @@ export function LiveCompanion({
     }
   }
   async function end() {
+    launchGeneration.current++;
+    setLaunchingView(false);
     stopCamera();
     captureAbort.current?.abort();
     await stopVoice();
@@ -535,14 +689,36 @@ export function LiveCompanion({
   }
   async function startVoice() {
     const s = current.current;
-    if (!s || s.status !== "active") return;
+    if (!s || s.status !== "active" || voice.current || voiceStarting.current)
+      return;
+    if (!s.policy.voiceConsent) {
+      setVoiceConsentSession(s);
+      return;
+    }
+    if (!voiceReady) {
+      setError((previous) =>
+        [
+          previous,
+          "Connect ElevenLabs in Settings to enable the voice companion. Camera controls remain available.",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      return;
+    }
     setError("");
+    voiceStarting.current = true;
     setVoiceStatus("connecting");
     const token = ++voiceEpoch.current;
     seenMessages.current.clear();
     try {
       const ticket = await api("/api/v1/voice/session", { sessionId: s.id });
-      if (token !== voiceEpoch.current) return;
+      if (token !== voiceEpoch.current) {
+        void api("/api/v1/voice/session/" + ticket.id, {
+          status: "ended",
+        }).catch(() => {});
+        return;
+      }
       voiceId.current = ticket.id;
       const { Conversation } = await import("@elevenlabs/react");
       if (token !== voiceEpoch.current) return;
@@ -684,9 +860,16 @@ export function LiveCompanion({
       }
     } catch (e: any) {
       if (token === voiceEpoch.current) {
-        setError(e.message || "Voice could not connect.");
+        const message =
+          e.name === "NotAllowedError"
+            ? "Microphone permission was denied. Allow it in browser settings, then press Talk with Thread."
+            : e.message ||
+              "Voice could not connect. Press Talk with Thread to retry.";
+        setError((previous) => [previous, message].filter(Boolean).join(" "));
         await stopVoice();
       }
+    } finally {
+      if (token === voiceEpoch.current) voiceStarting.current = false;
     }
   }
   async function confirmPerson() {
@@ -718,17 +901,64 @@ export function LiveCompanion({
     last = events.find((e) => e.status === "ready"),
     remaining = Math.max(0, data.budget.limit - data.budget.used);
   return (
-    <div className="live-page">
+    <div
+      ref={root}
+      className={"live-page" + (patientView ? " patient-fullscreen" : "")}
+    >
+      {patientView && (
+        <div className="patient-view-toolbar">
+          <div>
+            <strong>Thread · here with you</strong>
+            <small>
+              {windowFallback ? "Full-window patient view" : "Patient view"}
+            </small>
+          </div>
+          <div className="button-row">
+            <button
+              className="secondary"
+              disabled={!active}
+              onClick={choosePerson}
+            >
+              <Heart size={18} />
+              Who is with me?
+            </button>
+            {!active && (
+              <button
+                className="primary"
+                disabled={launchingView}
+                onClick={enterPatientView}
+              >
+                {launchingView ? "Starting…" : "Resume camera & voice"}
+              </button>
+            )}
+            <button className="secondary" onClick={leavePatientView}>
+              <Minimize size={18} />
+              Exit & pause
+            </button>
+          </div>
+        </div>
+      )}
       <div className="page-intro intro-row">
         <div>
           <span className="eyebrow">YOUR DAY, WITH A LITTLE SUPPORT</span>
           <h2>Here with you.</h2>
           <p>Look, talk, and pick up the thread of your day.</p>
         </div>
-        <span className="tag device-badge">
-          <Glasses size={17} />
-          Browser camera · patient view
-        </span>
+        <div className="patient-view-entry">
+          <span className="tag device-badge">
+            <Glasses size={17} />
+            Browser camera · patient view
+          </span>
+          <button
+            className="primary"
+            disabled={launchingView}
+            onClick={enterPatientView}
+          >
+            <Maximize size={18} />
+            Enter full screen
+          </button>
+          <small>Starts camera and voice together</small>
+        </div>
       </div>
       {error && (
         <div className="error-banner" role="alert">
@@ -792,7 +1022,13 @@ export function LiveCompanion({
           </div>
           <div className="patient-controls">
             {!session || session.status === "ended" ? (
-              <button className="primary" onClick={() => setSetup(true)}>
+              <button
+                className="primary"
+                onClick={() => {
+                  setSetupFullscreen(false);
+                  setSetup(true);
+                }}
+              >
                 <Play size={19} />
                 Start my day session
               </button>
@@ -806,7 +1042,7 @@ export function LiveCompanion({
                 {!cameraOn ? (
                   <button
                     className="primary"
-                    disabled={starting}
+                    disabled={starting || launchingView}
                     onClick={startCamera}
                   >
                     <Camera size={19} />
@@ -827,7 +1063,13 @@ export function LiveCompanion({
                   </button>
                 )}
                 {starting && (
-                  <button className="secondary" onClick={stopCamera}>
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      stopCamera();
+                      setLaunchingView(false);
+                    }}
+                  >
                     Cancel camera start
                   </button>
                 )}
@@ -857,7 +1099,8 @@ export function LiveCompanion({
                     disabled={
                       !voiceReady ||
                       !session.policy.voiceConsent ||
-                      voiceStatus === "connecting"
+                      voiceStatus === "connecting" ||
+                      launchingView
                     }
                     onClick={startVoice}
                   >
@@ -1216,7 +1459,10 @@ export function LiveCompanion({
       {setup && (
         <Modal
           title="Let’s begin on your terms"
-          onClose={() => setSetup(false)}
+          onClose={() => {
+            setSetup(false);
+            setSetupFullscreen(false);
+          }}
         >
           <form onSubmit={begin}>
             <label>
@@ -1266,9 +1512,14 @@ export function LiveCompanion({
               Also retain the selected images locally
             </label>
             <label className="checkbox">
-              <input name="voice" type="checkbox" defaultChecked={voiceReady} />
+              <input
+                name="voice"
+                type="checkbox"
+                required={setupFullscreen}
+                defaultChecked={setupFullscreen || voiceReady}
+              />
               Enable live voice: send microphone audio and retrieved diary
-              context to ElevenLabs when I press Talk
+              context to ElevenLabs when I start voice or enter full screen
             </label>
             <label className="checkbox">
               <input name="transcript" type="checkbox" />
@@ -1281,8 +1532,47 @@ export function LiveCompanion({
             </p>
             <button className="primary">
               <Check size={18} />
-              Start session
+              {setupFullscreen
+                ? "Start full screen, camera & voice"
+                : "Start session"}
             </button>
+          </form>
+        </Modal>
+      )}
+      {voiceConsentSession && (
+        <Modal
+          title="Start camera and voice"
+          onClose={() => setVoiceConsentSession(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const chosen = voiceConsentSession;
+              setVoiceConsentSession(null);
+              void launchPatientView(async () => {
+                const consented = await api<DiarySession>(
+                  "/api/v1/diary/sessions/" + chosen.id + "/voice-consent",
+                  { consent: true },
+                );
+                return consented.status === "active"
+                  ? consented
+                  : api<DiarySession>("/api/v1/diary/sessions/" + chosen.id, {
+                      operation: "resume",
+                    });
+              });
+            }}
+          >
+            <p>
+              This session has voice turned off. Full-screen patient view starts
+              the camera and microphone together.
+            </p>
+            <label className="checkbox">
+              <input type="checkbox" required />
+              Enable voice for this session: share microphone audio and
+              retrieved context with ElevenLabs. My other recording choices stay
+              the same.
+            </label>
+            <button className="primary">Enter full screen & start both</button>
           </form>
         </Modal>
       )}
