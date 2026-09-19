@@ -2,6 +2,8 @@
 
 The patient explicitly starts, pauses, resumes and ends each session. Thread never records an entire day invisibly. Browser sessions sample selected stills every 30, 60, 120 or 300 seconds while the camera is on and the page is visible. A small pixel comparison skips unchanged views for up to five minutes. **Remember this view** forces a capture. Changing scenes are not interpreted as completed activities.
 
+For longer sessions, configure `OPENAI_API_KEY` on the server: the browser-entered OpenAI connection expires after one hour. The default budget is 100 OpenAI requests per UTC day, shared by camera observations and other AI requests. Adjust `MAX_AI_CALLS_PER_DAY` and the capture interval to suit the intended session length and billing budget; reaching the limit pauses new AI work with a visible error.
+
 ## Stored organization
 
 - `diary_sessions`: title, browser device source, consent/retention policy, status and heartbeat.
@@ -26,4 +28,4 @@ The service must run, the browser must remain visible, and the computer must sta
 
 Retention is 1, 7 or 30 days per session; standalone written notes default to 30 days. Expired events are excluded from retrieval immediately and cleaned up by the service. A source quoted into another saved conversation or user note can remain there under that record's own retention. Deleting a person removes the profile/photo; confirmed historical encounters remain until separately deleted or expired.
 
-There are at most two concurrent analyses, one per session, 2,000 diary records per day, 50 familiar profiles, 200 records per recap and a configurable durable OpenAI-call cap. A still is limited to 4 MB and camera output is resized to at most 1,280 pixels wide. These are bounds for one household, not a claim of unlimited all-day recording or horizontal scaling.
+There are at most two concurrent analyses, one per session, 50 familiar profiles, 200 records per recap and a configurable durable OpenAI-call cap. Camera ingestion stops when there are 2,000 diary records in the past day. A still is limited to 4 MB and camera output is resized to at most 1,280 pixels wide. These are bounds for one household, not a claim of unlimited all-day recording or horizontal scaling.

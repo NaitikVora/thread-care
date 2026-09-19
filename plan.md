@@ -12,7 +12,7 @@ Product: patient-controlled camera sessions, real ElevenLabs voice, a retrievabl
 - [x] Optional caregiver/patient authentication with server-enforced permissions; mandatory authentication and HTTPS configuration before network hosting.
 - [x] 61 application tests, real PostgreSQL integration, production build, authenticated container startup, and diary browser verification. Existing OpenAI connection tested live.
 - [ ] Verify live ElevenLabs audio after the user connects their account; complete target camera/microphone checks.
-- [ ] Push reviewed source changes to the existing private GitHub repository.
+- [x] Push reviewed source changes to the existing private GitHub repository (main).
 
 ## Acceptance flow
 1. Connect OpenAI and ElevenLabs under Settings. Create a private Thread voice agent with its client tools.
