@@ -67,6 +67,18 @@ namespace RecallAR.EditorTools
         private static readonly Vector3 Spawn = new Vector3(0f, 0.05f, -2.4f);
 
         private const string DesktopLegend = "Mouse to look  •  W A S D to walk  •  H for a hint  •  Esc frees the cursor";
+        private static string currentContinueHint = "Press Space to continue";
+
+        /// <summary>Phone variant: touch rig, tap-friendly HUD.</summary>
+        [MenuItem("RecallAR/Build Demo Living Room Scene (Phone)")]
+        public static void BuildPhoneFromMenu()
+        {
+            BuildAndSave("Assets/Scenes/RecallAR_Demo_LivingRoom_Phone.unity", CreateTouchRig, worldSpaceHud: false, hudShader: null,
+                legend: "Left thumb: walk  •  Right thumb: look  •  Hold your gaze on things to recognize them",
+                continueHint: "Tap Continue");
+        }
+
+        public static void BuildPhoneAndSaveFromCommandLine() => BuildPhoneFromMenu();
 
         [MenuItem("RecallAR/Build Demo Living Room Scene")]
         public static void BuildFromMenu()
@@ -77,8 +89,10 @@ namespace RecallAR.EditorTools
         public static void BuildAndSaveFromCommandLine() => BuildFromMenu();
 
         /// <summary>Builds the whole demo scene around the given player rig and saves it.</summary>
-        public static void BuildAndSave(string scenePath, PlayerRigFactory rigFactory, bool worldSpaceHud, Shader hudShader, string legend)
+        public static void BuildAndSave(string scenePath, PlayerRigFactory rigFactory, bool worldSpaceHud, Shader hudShader, string legend,
+            string continueHint = "Press Space to continue")
         {
+            currentContinueHint = continueHint;
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             BuildLighting();
@@ -473,6 +487,18 @@ namespace RecallAR.EditorTools
             return new PlayerRig { root = player, camera = camera, hudParent = camGo.transform };
         }
 
+        /// <summary>Phone stand-in: same grounded controller, driven by touch drags.</summary>
+        private static PlayerRig CreateTouchRig(Vector3 spawn)
+        {
+            var rig = CreateDesktopRig(spawn);
+            var fps = rig.root.GetComponent<FirstPersonController>();
+            var pivot = rig.camera.transform.parent;
+            UnityEngine.Object.DestroyImmediate(fps);
+            var touch = rig.root.AddComponent<TouchLookController>();
+            SetField(touch, "cameraPivot", pivot);
+            return rig;
+        }
+
         private static void AttachGaze(PlayerRig rig,
             out SimulatedPersonRecognitionProvider personProvider, out SimulatedObjectRecognitionProvider objectProvider)
         {
@@ -558,9 +584,11 @@ namespace RecallAR.EditorTools
             var continueButton = CreateButton(memoryPanel, "Continue Button", "Continue", Anchor.BottomCenter, new Vector2(0, 20), new Vector2(220, 52));
             var continueHint = CreateText(memoryPanel, "Continue Hint", "Press Space to continue", 16, TextAnchor.MiddleCenter, Anchor.BottomCenter, new Vector2(0, 80), new Vector2(580, 24), new Color(0.7f, 0.7f, 0.7f));
 
-            // Hint (bottom).
+            // Hint (bottom) plus an always-available "Need a hint?" button
+            // (bottom-right) for touch, where there is no H key.
             var hintPanel = CreatePanel(canvasRect, "Hint Panel", Anchor.BottomCenter, new Vector2(0, 150), new Vector2(760, 70));
             var hintText = CreateText(hintPanel, "Hint Text", "", 24, TextAnchor.MiddleCenter, Anchor.MiddleCenter, Vector2.zero, new Vector2(720, 60), Color.white);
+            var hintButton = CreateButton(canvasRect, "Hint Button", "Need a hint?", Anchor.BottomRight, new Vector2(-20, 60), new Vector2(200, 56));
 
             // Garden message (bottom-left).
             var gardenMsgPanel = CreatePanel(canvasRect, "Garden Message Panel", Anchor.BottomLeft, new Vector2(20, 150), new Vector2(360, 70));
@@ -594,6 +622,7 @@ namespace RecallAR.EditorTools
             SetField(memoryCard, "bodyText", memoryBodyText);
             SetField(memoryCard, "continueHintText", continueHint);
             SetField(memoryCard, "continueButton", continueButton);
+            SetStringField(memoryCard, "defaultContinueHint", currentContinueHint);
 
             var identityCard = managers.AddComponent<IdentityCardController>();
             SetField(identityCard, "panel", identityPanel.gameObject);
@@ -608,6 +637,7 @@ namespace RecallAR.EditorTools
             var hintController = managers.AddComponent<HintController>();
             SetField(hintController, "panel", hintPanel.gameObject);
             SetField(hintController, "hintText", hintText);
+            SetField(hintController, "hintButton", hintButton);
             SetField(hintController, "questManager", questManager);
 
             var highlight = managers.AddComponent<ObjectHighlightController>();
@@ -862,6 +892,19 @@ namespace RecallAR.EditorTools
             prop.arraySize = values.Length;
             for (var i = 0; i < values.Length; i++)
                 prop.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetStringField(UnityEngine.Object target, string fieldName, string value)
+        {
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(fieldName);
+            if (prop == null)
+            {
+                Debug.LogError($"DemoSceneBuilder: no field '{fieldName}' on {target.GetType().Name}");
+                return;
+            }
+            prop.stringValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

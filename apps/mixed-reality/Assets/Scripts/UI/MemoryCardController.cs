@@ -17,6 +17,7 @@ namespace RecallAR.UI
         [SerializeField] private Text bodyText;
         [SerializeField] private Text continueHintText;
         [SerializeField] private Button continueButton;
+        [SerializeField] private string defaultContinueHint = "Press Space to continue";
 
         public event Action Dismissed;
         public bool IsVisible => panel != null && panel.activeSelf;
@@ -37,11 +38,11 @@ namespace RecallAR.UI
                 (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return))) Dismiss();
         }
 
-        public void Show(string title, string body, string continueHint = "Press Space to continue")
+        public void Show(string title, string body, string continueHint = null)
         {
             titleText.text = title;
             bodyText.text = body;
-            if (continueHintText != null) continueHintText.text = continueHint;
+            if (continueHintText != null) continueHintText.text = continueHint ?? defaultContinueHint;
             shownFrame = Time.frameCount;
             panel.SetActive(true);
         }
