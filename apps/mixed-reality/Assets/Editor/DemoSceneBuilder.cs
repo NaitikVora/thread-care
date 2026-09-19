@@ -368,8 +368,8 @@ namespace RecallAR.EditorTools
             // characters), not people standing in the room.
             var people = new[]
             {
-                MakePortrait(corner, "character-i", 1.25f, "susan_01", "Susan", "Your wife",
-                    "Susan has white hair and glasses.", "Susan and you have been married since 1978.",
+                MakePortrait(corner, "character-n", 1.25f, "susan_01", "Susan", "Your wife",
+                    "Susan has dark hair and wears a green dress.", "Susan and you have been married since 1978.",
                     "You and Susan still make Sunday breakfast together."),
                 MakePortrait(corner, "character-c", 2.2f, "jack_01", "Jack", "Your brother",
                     "Jack is wearing a green shirt.", "Jack is your brother.",
