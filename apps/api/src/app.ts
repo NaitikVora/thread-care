@@ -986,10 +986,19 @@ export async function createApp(options: {
     controllers.forEach((c) => c.abort());
   });
   if (options.staticDir && existsSync(options.staticDir)) {
-    await app.register(fastifyStatic, { root: options.staticDir });
+    await app.register(fastifyStatic, {
+      root: options.staticDir,
+      setHeaders: (response, filePath) => {
+        if (filePath.endsWith(".html"))
+          response.header("Cache-Control", "no-cache");
+      },
+    });
     app.setNotFoundHandler((req, reply) =>
-      req.url.startsWith("/api/")
-        ? reply.code(404).send({ error: { message: "Endpoint not found." } })
+      req.url.startsWith("/api/") || req.url.startsWith("/assets/")
+        ? reply
+            .header("Cache-Control", "no-store")
+            .code(404)
+            .send({ error: { message: "Resource not found." } })
         : reply.sendFile("index.html"),
     );
   }

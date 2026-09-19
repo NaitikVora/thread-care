@@ -66,6 +66,7 @@ export function LiveCompanion({
     [starting, setStarting] = useState(false),
     [capturing, setCapturing] = useState(false),
     [error, setError] = useState(""),
+    [voiceAssetError, setVoiceAssetError] = useState(false),
     [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
     [device, setDevice] = useState(""),
     [auto, setAuto] = useState(true),
@@ -707,11 +708,19 @@ export function LiveCompanion({
       return;
     }
     setError("");
+    setVoiceAssetError(false);
     voiceStarting.current = true;
     setVoiceStatus("connecting");
     const token = ++voiceEpoch.current;
     seenMessages.current.clear();
     try {
+      const { Conversation } = await import("@elevenlabs/react").catch(() => {
+        if (token === voiceEpoch.current) setVoiceAssetError(true);
+        throw new Error(
+          "Voice files could not load. This page may be from an older app version. Pause and refresh the app, then start voice again.",
+        );
+      });
+      if (token !== voiceEpoch.current) return;
       const ticket = await api("/api/v1/voice/session", { sessionId: s.id });
       if (token !== voiceEpoch.current) {
         void api("/api/v1/voice/session/" + ticket.id, {
@@ -720,7 +729,6 @@ export function LiveCompanion({
         return;
       }
       voiceId.current = ticket.id;
-      const { Conversation } = await import("@elevenlabs/react");
       if (token !== voiceEpoch.current) return;
       const c = await Conversation.startSession({
         signedUrl: ticket.signedUrl,
@@ -963,6 +971,17 @@ export function LiveCompanion({
       {error && (
         <div className="error-banner" role="alert">
           {error}
+          {voiceAssetError && (
+            <button
+              className="secondary"
+              onClick={async () => {
+                await pause("Paused to load the latest app version.");
+                window.location.reload();
+              }}
+            >
+              Pause & refresh app
+            </button>
+          )}
           <button className="text-button" onClick={() => setError("")}>
             Dismiss
           </button>
