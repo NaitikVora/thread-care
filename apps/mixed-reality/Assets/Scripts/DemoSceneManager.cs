@@ -33,6 +33,11 @@ namespace RecallAR
         [Tooltip("Off for AR, where the placer starts the flow once the room has been scanned.")]
         [SerializeField] private bool autoStart = true;
 
+        /// <summary>Fired when the guided sequence begins (first run and each replay).</summary>
+        public event Action SequenceStarted;
+        /// <summary>Fired when the wrap-up message is shown.</summary>
+        public event Action SequenceFinished;
+
         private int questIndex = -1;
         private QuestDefinition pendingMemoryFor;
         private bool pendingGameSummary;
@@ -61,6 +66,7 @@ namespace RecallAR
         /// <summary>Starts the guided sequence (greeting, then the first quest).</summary>
         public void Begin()
         {
+            SequenceStarted?.Invoke();
             ShowInstruction(greeting);
             SetProgress("");
             Invoke(nameof(StartNextQuest), greetingDuration);
@@ -149,6 +155,7 @@ namespace RecallAR
             SetProgress(flowers == 1
                 ? "You grew 1 flower in your Memory Garden today.   •   Space to play again"
                 : $"You grew {flowers} flowers in your Memory Garden today.   •   Space to play again");
+            SequenceFinished?.Invoke();
         }
 
         private void Restart()
@@ -158,6 +165,7 @@ namespace RecallAR
             questIndex = -1;
             pendingMemoryFor = null;
             pendingGameSummary = false;
+            SequenceStarted?.Invoke();
             ShowInstruction(greeting);
             SetProgress("");
             Invoke(nameof(StartNextQuest), 1.5f);

@@ -819,6 +819,17 @@ namespace RecallAR.EditorTools
             SetField(demoManager, "progressText", progressText);
             if (arMode) SetBoolField(demoManager, "autoStart", false);
 
+            // Caregiver activity log (idle unless StreamingAssets/recallar-supabase.json exists).
+            var logger = managers.AddComponent<RecallAR.Telemetry.ActivityLogger>();
+            SetField(logger, "demo", demoManager);
+            SetField(logger, "questManager", questManager);
+            SetField(logger, "memoryGame", memoryGame);
+            SetField(logger, "memoryCard", memoryCard);
+            SetField(logger, "personRecognition", personProvider);
+            SetField(logger, "rewards", rewardController);
+            SetField(logger, "memoryGarden", memoryGarden);
+            SetStringField(logger, "appVariant", arMode ? "phone-ar" : worldSpaceHud ? "meta-xr" : "living-room");
+
             return new BuildResult
             {
                 rig = rig,

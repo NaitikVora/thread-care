@@ -80,6 +80,15 @@ recognition is still gaze-and-hold on these virtual objects (no camera-image ana
 Build with **RecallAR → Build iOS (Xcode project) - Phone AR**, then run from Xcode.
 `ARProjectSetup` enables the ARKit loader for iOS; Standalone/Meta XR settings are separate.
 
+## Caregiver activity log (Supabase)
+
+Every variant carries an `ActivityLogger` (`Assets/Scripts/Telemetry`) that records the
+run — session start/finish, each quest started/completed with time taken and hints asked,
+memories viewed, people recognized, every memory-game look — to a Supabase project the
+caregiver web app reads. It is idle unless `Assets/StreamingAssets/recallar-supabase.json`
+exists (git-ignored; copy the `.example`). Schema, setup steps and query examples:
+[`../../supabase/README.md`](../../supabase/README.md).
+
 ## Architecture
 
 This is built to the same separation the product spec asks for, so a real device

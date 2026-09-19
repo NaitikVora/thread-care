@@ -20,6 +20,8 @@ namespace RecallAR.UI
         [SerializeField] private string defaultContinueHint = "Press Space to continue";
 
         public event Action Dismissed;
+        /// <summary>Fired when a memory is shown (title, body) — used by the activity log.</summary>
+        public event Action<string, string> Shown;
         public bool IsVisible => panel != null && panel.activeSelf;
 
         private int shownFrame = -1;
@@ -45,6 +47,7 @@ namespace RecallAR.UI
             if (continueHintText != null) continueHintText.text = continueHint ?? defaultContinueHint;
             shownFrame = Time.frameCount;
             panel.SetActive(true);
+            Shown?.Invoke(title, body);
         }
 
         public void Hide()

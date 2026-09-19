@@ -37,6 +37,10 @@ namespace RecallAR.Game
         public event Action<string> Message;
         /// <summary>Fired once all rounds are answered; elapsed seconds.</summary>
         public event Action<float> Finished;
+        /// <summary>Fired when the player steps on the mat and the rounds begin.</summary>
+        public event Action Started;
+        /// <summary>Fired for every answer: (asked, chosen, matched, round index). Descriptive only.</summary>
+        public event Action<RecognizablePerson, RecognizablePerson, bool, int> Answered;
 
         public bool IsAvailable { get; private set; }
         public bool IsRunning { get; private set; }
@@ -96,6 +100,7 @@ namespace RecallAR.Game
             if (timerPanel != null) timerPanel.SetActive(true);
             if (cornerSign != null) cornerSign.SetActive(false);
             personRecognition.PersonRecognized += HandleAnswer;
+            Started?.Invoke();
             AskCurrent();
         }
 
@@ -111,6 +116,7 @@ namespace RecallAR.Game
             if (Array.IndexOf(people, chosen) < 0) return;
 
             var target = order[round];
+            Answered?.Invoke(target, chosen, chosen == target, round);
             if (chosen == target)
             {
                 rewards.AddPoints(pointsPerAnswer);

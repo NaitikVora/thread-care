@@ -35,3 +35,7 @@
 # Crash/diagnostic reports
 sysinfo.txt
 crashlytics-build.txt
+
+# Supabase connection for the activity log (copy recallar-supabase.example.json)
+Assets/StreamingAssets/recallar-supabase.json
+Assets/StreamingAssets/recallar-supabase.json.meta
