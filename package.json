@@ -1,9 +1,19 @@
 {
-  "name": "thread-care",
+  "name": "recallar",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "description": "Hardware-free daily continuity companion prototype",
-  "scripts": {"dev": "node server.mjs", "start": "node server.mjs", "test": "node --test tests/*.test.mjs", "check": "node scripts/check.mjs"},
-  "engines": {"node": ">=20"}
+  "description": "RecallAR — a personalized AR memory companion for people living with Alzheimer's and their caregivers",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace=@recallar/web",
+    "web:test": "npm run test --workspace=@recallar/web",
+    "web:check": "npm run check --workspace=@recallar/web",
+    "mobile": "npm run start --workspace=@recallar/mobile"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }
