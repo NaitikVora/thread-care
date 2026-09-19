@@ -1,0 +1,39 @@
+# Single-household deployment behind an HTTPS reverse proxy.
+# This file does not publish the application to the Internet.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: thread
+      POSTGRES_DB: thread
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your deployment environment}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U thread -d thread]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  app:
+    build: .
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      DATABASE_URL: postgres://thread:${POSTGRES_PASSWORD}@db:5432/thread
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set the HTTPS origin of your reverse proxy}
+      THREAD_CAREGIVER_PASSWORD: ${THREAD_CAREGIVER_PASSWORD:?Set a strong caregiver password}
+      SESSION_SECRET: ${SESSION_SECRET:?Set a stable encryption secret}
+    ports:
+      - 127.0.0.1:4173:4173
+    volumes:
+      - image-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres-data:
+  image-data:

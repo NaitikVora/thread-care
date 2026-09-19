@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS app_state (id integer PRIMARY KEY CHECK(id=1), data jsonb NOT NULL, revision integer NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS knowledge (id text PRIMARY KEY, kind text NOT NULL, title text NOT NULL, content text NOT NULL, tags jsonb NOT NULL, author text NOT NULL, revision integer NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS knowledge_history (id text NOT NULL, revision integer NOT NULL, data jsonb NOT NULL, changed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(id,revision));
+CREATE TABLE IF NOT EXISTS reminders (id text PRIMARY KEY, title text NOT NULL, due_at timestamptz NOT NULL, timezone text NOT NULL, status text NOT NULL DEFAULT 'scheduled', created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS reminders_due ON reminders(status,due_at);
+CREATE TABLE IF NOT EXISTS examples (id text PRIMARY KEY, label text NOT NULL, note text NOT NULL, group_key text NOT NULL, split text NOT NULL, task text NOT NULL, blob_key text NOT NULL, mime text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS agent_runs (id text PRIMARY KEY, status text NOT NULL, question text NOT NULL, reply text NOT NULL DEFAULT '', actions jsonb NOT NULL DEFAULT '[]', applied jsonb NOT NULL DEFAULT '[]', sources jsonb NOT NULL DEFAULT '[]', trace jsonb NOT NULL DEFAULT '[]', revision integer NOT NULL, mode text NOT NULL DEFAULT 'basic', model text, feedback text, correction text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS commands (id text PRIMARY KEY, payload text NOT NULL, result jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS settings (id integer PRIMARY KEY CHECK(id=1), data jsonb NOT NULL);

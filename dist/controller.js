@@ -1,3 +1,4 @@
+import {setupAI} from './ai-client.js';
 import {STORAGE_KEY, createState, restoreState, transition, replyTo, recall, routineContext} from './domain.js';
 const $=id=>document.getElementById(id);
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -5,6 +6,7 @@ const icons={sun:'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m-12.8 0
 const icon=name=>'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+(icons[name]||icons.bookmark)+'"/></svg>';
 const time=value=>new Date(value).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 const date=value=>new Date(value).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+let ai;
 let state=createState(), view='companion', toastTimer, recognition=null, listening=false;
 try{state=restoreState(localStorage.getItem(STORAGE_KEY));}catch(error){$('storage-warning').hidden=false;$('storage-warning').textContent='Saved data could not be loaded. A fresh session is ready; your next change will save it.';}
 function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{$('storage-warning').hidden=false;$('storage-warning').textContent='This browser can’t save your changes. You can continue, but changes may be lost when you close or reload this page.';}}
@@ -12,7 +14,7 @@ function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;
 function say(text){if(!state.sound||!('speechSynthesis'in window))return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.rate=.88;utterance.lang=navigator.language||'en-US';utterance.onerror=event=>{if(!['interrupted','canceled'].includes(event.error))toast('Spoken playback is unavailable. Your reply is shown in the conversation.');};window.speechSynthesis.speak(utterance);}
 function addReply(text){if(!text)return;state.messages.push({role:'assistant',text});state.messages=state.messages.slice(-40);}
 function act(action,announce=true){try{const result=transition(state,action);state=result.state;if(announce)addReply(result.reply);persist();render();if(announce)say(result.reply);return result;}catch(error){toast(error.message);return null;}}
-function send(text){if(!text.trim())return;try{const result=replyTo(state,text);state=result.state;persist();render();say(result.reply);}catch(error){toast(error.message);}}
+async function send(text){if(!text.trim())return;if(await ai.sendChat(text))return;try{const result=replyTo(state,text);state=result.state;persist();render();say(result.reply);}catch(error){toast(error.message);}}
 function render(){
   $('profile-name').textContent=state.profile.name;$('profile-initial').textContent=state.profile.name.charAt(0).toUpperCase();
   const count=state.requests.filter(r=>r.status==='open').length;$('help-count').textContent=count;$('help-count').hidden=!count;
@@ -23,6 +25,8 @@ function render(){
   $('routine-list').innerHTML=state.routines.map(r=>'<button class="routine-card'+(state.active?.routineId===r.id?' routine-saved':'')+'" data-start="'+r.id+'"><span class="routine-icon">'+icon(r.icon)+'</span><div><h3>'+escape(r.title)+'</h3><p>'+r.steps.length+' steps · '+escape(r.description)+'</p></div><span class="end-arrow">'+icon('arrow')+'</span></button>').join('');
   if(view==='care')renderCare();
   if(view==='activity')renderActivity();
+  if(view==='connection')ai?.renderConnection();
+  ai?.renderStatus();
 }
 function renderDisplay(){
   const c=routineContext(state);
@@ -31,7 +35,7 @@ function renderDisplay(){
   $('glasses-content').innerHTML='<div class="routine-kicker">'+escape(c.routine.title)+'</div><span class="display-icon">'+icon(completed?'check':paused?'pause':c.routine.icon)+'</span><h2>'+escape(completed?'A little progress. All yours.':paused?'Take your time.':c.step)+'</h2><p>'+(completed?'You confirmed every step.':paused?'Your place is saved. Come back when you’re ready.':'Step '+(state.active.step+1)+' of '+c.routine.steps.length)+'</p><div class="step-progress" aria-label="'+(completed?'Completed':(state.active.step+' of '+c.routine.steps.length+' steps completed'))+'">'+c.routine.steps.map((_,i)=>'<span class="'+(completed||i<state.active.step?'done':'')+'"></span>').join('')+'</div>';
   $('routine-controls').innerHTML=completed?'<button class="primary light" data-start="'+c.routine.id+'">Start again '+icon('arrow')+'</button>':paused?'<button class="primary light" data-action="resume">I’m ready '+icon('arrow')+'</button>':'<button class="secondary dark-secondary" data-action="pause">Pause</button><button class="primary light" data-action="next">I’ve done this '+icon('check')+'</button>';
 }
-function switchView(next){if(!['companion','care','activity'].includes(next))return;view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!=='view-'+next);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);if(el.dataset.view===next)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});$('page-title').textContent=({companion:'Your companion',care:'Your care circle',activity:'Little moments, remembered'})[next];render();}
+function switchView(next){if(!['companion','care','activity','connection'].includes(next))return;view=next;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!=='view-'+next);document.querySelectorAll('[data-view]').forEach(el=>{el.classList.toggle('active',el.dataset.view===next);if(el.dataset.view===next)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});$('page-title').textContent=({companion:'Your companion',care:'Your care circle',activity:'Little moments, remembered',connection:'Your AI connection'})[next];render();}
 function renderCare(){
   const p=state.profile;
   const localDate=p.visitAt?new Date(Date.parse(p.visitAt)-new Date(p.visitAt).getTimezoneOffset()*60000).toISOString().slice(0,16):'';
@@ -41,6 +45,8 @@ function renderActivity(){
   const memories=(state.intention?[{name:'Your current thought',location:state.intention.text,at:state.intention.at,intention:true}]:[]).concat(state.objects);
   $('view-activity').innerHTML='<div class="activity-heading"><p>Saved on this device. Each memory keeps its source.</p><button class="secondary" id="reset-button">Reset demo</button></div><div class="memory-list">'+memories.map(m=>'<article class="memory-card"><span class="source-tag">You told Thread</span><strong>'+escape(m.name)+'</strong><p>'+escape(m.location)+'</p><p class="timeline-meta">'+date(m.at)+' · '+time(m.at)+'</p>'+(m.intention?'<button class="text-button" id="forget-intention">Clear this thought</button>':'')+'</article>').join('')+'</div><section class="card timeline">'+(state.events.length?state.events.map(e=>'<article class="timeline-item"><span class="timeline-icon">'+icon(e.type==='help'?'heart':e.type==='routine'?'check':'bookmark')+'</span><div><h3>'+escape(e.title)+'</h3><p>'+escape(e.detail)+'</p><div class="timeline-meta">'+escape(e.source)+'</div></div><time datetime="'+escape(e.at)+'">'+date(e.at)+' · '+time(e.at)+'</time></article>').join(''):'<div class="empty-state"><span class="blank-icon">'+icon('bookmark')+'</span><p>Your story starts here.</p><p>Start a routine or save a thought to see it in your timeline.</p></div>')+'</section>';
 }
+const baseRenderCare=renderCare;
+renderCare=function(){baseRenderCare();ai?.careTools();};
 function openMemory(){$('memory-form').reset();updateMemoryFields();$('memory-dialog').showModal();}
 function updateMemoryFields(){const object=$('memory-type').value==='object';$('object-fields').hidden=!object;$('intention-fields').hidden=object;$('intention-input').required=!object;$('object-input').required=object;$('location-input').required=object;}
 document.addEventListener('click',event=>{
@@ -59,7 +65,7 @@ document.addEventListener('click',event=>{
   if(button.id==='sound-toggle'){if(!('speechSynthesis'in window)){toast('Spoken replies are not supported in this browser.');return;}act({type:'sound',enabled:!state.sound},false);if(state.sound)say('Spoken replies are on.');else window.speechSynthesis.cancel();}
   if(button.id==='mic-button')toggleVoice();
 });
-$('chat-form').addEventListener('submit',event=>{event.preventDefault();const text=$('chat-input').value;$('chat-input').value='';send(text);$('chat-input').focus();});
+$('chat-form').addEventListener('submit',event=>{event.preventDefault();if(ai.isBusy()){toast('Please wait for the current reply.');return;}const text=$('chat-input').value;$('chat-input').value='';send(text);$('chat-input').focus();});
 $('memory-type').addEventListener('change',updateMemoryFields);
 $('memory-form').addEventListener('submit',event=>{event.preventDefault();const action=$('memory-type').value==='object'?{type:'object',name:$('object-input').value,location:$('location-input').value}:{type:'intention',text:$('intention-input').value};const result=act(action);if(result){$('memory-dialog').close();toast('Saved with your words and the time.');}});
 document.addEventListener('submit',event=>{
@@ -80,11 +86,12 @@ function toggleVoice(){
     recognition.onstart=()=>{listening=true;$('mic-button').classList.add('mic-active');$('mic-button').setAttribute('aria-label','Stop voice input');$('voice-note').textContent='Listening… press the microphone to stop.';};
     recognition.onresult=event=>{const transcript=event.results[0][0].transcript;$('chat-input').value=transcript;toast('Voice captured. Review your words, then press Send.');};
     recognition.onerror=event=>{const message=event.error==='not-allowed'?'Microphone access was denied. You can type your message.':event.error==='no-speech'?'No speech was detected. Try again or type your message.':event.error==='network'?'The browser speech service could not connect. You can type instead.':'Voice input stopped. You can type instead.';if(event.error!=='aborted')toast(message);};
-    recognition.onend=()=>{listening=false;$('mic-button').classList.remove('mic-active');$('mic-button').setAttribute('aria-label','Start voice input');$('voice-note').textContent='Guided commands · voice uses your browser’s speech service';};
+    recognition.onend=()=>{listening=false;$('mic-button').classList.remove('mic-active');$('mic-button').setAttribute('aria-label','Start voice input');$('voice-note').textContent='Voice uses your browser’s speech service';};
     recognition.start();
   }catch{listening=false;toast('Voice input could not start. You can type your message.');}
 }
 $('date-label').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
+ai=setupAI({getState:()=>structuredClone(state),onMessage:(role,text)=>{state.messages.push({role,text});state.messages=state.messages.slice(-40);persist();render();},onAction:action=>act(action),notify:toast,speak:say,switchView});
 updateMemoryFields();render();
 // Tools share the same state and actions as the visible interface.
 if(document.modelContext?.registerTool){

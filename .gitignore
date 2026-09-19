@@ -6,3 +6,8 @@ node_modules/
 .sites-runtime/
 coverage/
 work/
+dist/server/
+dist/.openai/
+build/
+.local-data/
+*.tsbuildinfo
