@@ -47,7 +47,15 @@ dismiss with **Space** (or the Continue button) to move on:
 2. **"Sarah is visiting today. Can you find her?"** — she's standing by the rug near the
    sofa. Gaze → "That's Sarah!" and her identity card → **R** (or Space) to remember →
    memory card → +5 → another flower.
-3. **"Let's find your reading glasses."** — on the nightstand by the little lamp in the
+3. **Memory Corner game** — *"Walk over to the mat in the corner, by the three
+   friends."* Step on the blue mat by the front-right wall and three family members
+   stand in front of you (Susan, Jack, Michael). Each round asks *"Which one is Jack,
+   your brother? Look at them."* — you answer by holding your gaze on your choice.
+   Right: *"Wonderful! That's Jack."* +5. Not right: *"That's okay. Here's a hint: Jack
+   is wearing a blue shirt."* and you simply look again — never "wrong", no penalty.
+   A calm "Game time" readout runs top-left (requested; nothing depends on it).
+   Three rounds → summary card → +1 flower.
+4. **"Let's find your reading glasses."** — on the nightstand by the little lamp in the
    front-left corner → memory → +10 → flower.
 
 Then: *"That's everything for today. Wonderful, John!"* with a flower count. Space

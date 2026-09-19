@@ -1,5 +1,6 @@
 using RecallAR;
 using RecallAR.Data;
+using RecallAR.Game;
 using RecallAR.Player;
 using RecallAR.Quest;
 using RecallAR.Recognition;
@@ -71,9 +72,10 @@ namespace RecallAR.EditorTools
             BuildLiving();
             BuildBedroomCorner(out var glasses);
             var sarah = BuildSarah();
+            var corner = BuildMemoryCorner();
             var gardenArea = BuildGardenArea();
-            BuildPlayer(out var gazeCam, out var personProvider, out var objectProvider);
-            BuildHud(gazeCam, mug, glasses, sarah, gardenArea, objectProvider, personProvider);
+            BuildPlayer(out var player, out var gazeCam, out var personProvider, out var objectProvider);
+            BuildHud(player, mug, glasses, sarah, corner, gardenArea, objectProvider, personProvider);
 
             EditorSceneManager.MarkSceneDirty(scene);
         }
@@ -233,8 +235,8 @@ namespace RecallAR.EditorTools
             Place(living, "rugRectangle", 2.3f, 0.3f, 90f, S, addCollider: false);
             var coffeeTable = Place(living, "tableCoffee", 2.4f, 0.3f, 90f, S);
             Place(living, "bear", 2.4f, 0.5f, 30f, 0.1f, floorY: coffeeTable.bounds.max.y, addCollider: false);
-            Place(living, "loungeChairRelax", 2.3f, -1.9f, 180f, S);
-            Place(living, "pottedPlant", 3.9f, -2.85f, 0f, S, addCollider: false);
+            Place(living, "loungeChairRelax", -2.6f, -1.5f, 90f, S);
+            Place(living, "pottedPlant", 3.9f, -1.5f, 0f, S, addCollider: false);
 
             // TV on its cabinet against the left wall, facing the room (+X).
             var tvCabinet = Place(living, "cabinetTelevision", -InnerX + 2.5f * S * 0.5f, -1.6f, -90f, S);
@@ -307,6 +309,64 @@ namespace RecallAR.EditorTools
         }
 
         // ------------------------------------------------------------------
+        // Memory Corner: a mat by the front-right wall where three familiar
+        // people stand for the "which one is…?" game. They start disabled and
+        // appear when the flow reaches the game.
+
+        private static (Transform zone, GameObject sign, RecognizablePerson[] people) BuildMemoryCorner()
+        {
+            var corner = new GameObject("Memory Corner").transform;
+
+            var mat = CreateBlock(corner, "Memory Game Mat", PrimitiveType.Cube,
+                new Vector3(2.2f, 0.015f, -1.55f), new Vector3(1.4f, 0.03f, 1.0f), new Color(0.5f, 0.62f, 0.8f));
+            Object.DestroyImmediate(mat.GetComponent<Collider>());
+
+            var sign = new GameObject("Memory Corner Sign");
+            sign.transform.SetParent(corner, false);
+            sign.transform.position = new Vector3(2.2f, 2.15f, -InnerZ + 0.06f);
+            sign.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            var text = sign.AddComponent<TextMesh>();
+            text.text = "Memory Corner\nstep on the mat";
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 64;
+            text.characterSize = 0.05f;
+            text.anchor = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignment.Center;
+            text.color = new Color(0.3f, 0.5f, 0.42f);
+            sign.GetComponent<MeshRenderer>().material = text.font.material;
+
+            var people = new[]
+            {
+                MakePerson(corner, "character-i", 1.25f, "susan_01", "Susan", "Your wife",
+                    "Susan has white hair and glasses.", "Susan and you have been married since 1978.",
+                    "You and Susan still make Sunday breakfast together."),
+                MakePerson(corner, "character-p", 2.2f, "jack_01", "Jack", "Your brother",
+                    "Jack is wearing a blue shirt.", "Jack is your brother.",
+                    "You and Jack grew up together."),
+                MakePerson(corner, "character-k", 3.15f, "michael_01", "Michael", "Your son",
+                    "Michael is wearing a red shirt.", "Michael lives in New York.",
+                    "Michael calls you every Sunday afternoon."),
+            };
+            return (mat.transform, sign, people);
+        }
+
+        private static RecognizablePerson MakePerson(Transform parent, string model, float x, string id, string name,
+            string relationship, string hint, string description, string memory)
+        {
+            var placed = Place(parent, model, x, -InnerZ + 0.45f, 0f, CharacterScale);
+            placed.go.name = name;
+            var p = placed.go.AddComponent<RecognizablePerson>();
+            p.personId = id;
+            p.displayName = name;
+            p.relationship = relationship;
+            p.identifyingHint = hint;
+            p.shortDescription = description;
+            p.associatedMemory = memory;
+            p.recognitionDelay = 1.2f;
+            return p;
+        }
+
+        // ------------------------------------------------------------------
         // Memory Garden by the window, where flowers appear.
 
         private static Transform BuildGardenArea()
@@ -323,10 +383,10 @@ namespace RecallAR.EditorTools
         // ------------------------------------------------------------------
         // Player: grounded first-person controller with an eye-height camera.
 
-        private static void BuildPlayer(out Camera camera,
+        private static void BuildPlayer(out GameObject player, out Camera camera,
             out SimulatedPersonRecognitionProvider personProvider, out SimulatedObjectRecognitionProvider objectProvider)
         {
-            var player = new GameObject("Player");
+            player = new GameObject("Player");
             player.layer = 2; // Ignore Raycast, so the gaze cast never hits the player's own capsule.
             player.transform.position = new Vector3(0f, 0.05f, -2.4f);
 
@@ -362,22 +422,29 @@ namespace RecallAR.EditorTools
         // ------------------------------------------------------------------
         // HUD + managers
 
-        private static void BuildHud(Camera camera, RecallARObject mug, RecallARObject glasses, RecognizablePerson sarah,
-            Transform gardenArea, SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
+        private static void BuildHud(GameObject player, RecallARObject mug, RecallARObject glasses, RecognizablePerson sarah,
+            (Transform zone, GameObject sign, RecognizablePerson[] people) corner, Transform gardenArea,
+            SimulatedObjectRecognitionProvider objectProvider, SimulatedPersonRecognitionProvider personProvider)
         {
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
             BuildReticle(objectProvider, personProvider);
 
+            // Screen-space overlay: can't be cut off by walls the way a panel
+            // floating in front of the camera can. (A headset build would move
+            // these panels to world space, anchored near their subjects.)
             var canvasGo = new GameObject("HUD Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvas.worldCamera = camera;
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 10;
+            var scaler = canvasGo.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1000, 600);
+            scaler.matchWidthOrHeight = 0.5f;
             var canvasRect = canvasGo.GetComponent<RectTransform>();
-            canvasRect.sizeDelta = new Vector2(1000, 600);
-            canvasGo.transform.SetParent(camera.transform, false);
-            canvasGo.transform.localPosition = new Vector3(0, 0, 1.6f);
-            canvasGo.transform.localRotation = Quaternion.identity;
-            canvasGo.transform.localScale = Vector3.one * 0.0016f;
+
+            // Memory game timer (top-left), hidden until the game runs.
+            var timerPanel = CreatePanel(canvasRect, "Timer Panel", Anchor.TopLeft, new Vector2(20, -20), new Vector2(230, 50));
+            var timerText = CreateText(timerPanel, "Timer Text", "Game time 0:00", 20, TextAnchor.MiddleCenter, Anchor.MiddleCenter, Vector2.zero, new Vector2(210, 40), Color.white);
 
             CreateText(canvasRect, "Controls Legend", "Mouse to look  •  W A S D to walk  •  H for a hint  •  Esc frees the cursor",
                 16, TextAnchor.LowerCenter, Anchor.BottomCenter, new Vector2(0, 16), new Vector2(800, 30), new Color(0.55f, 0.55f, 0.55f));
@@ -470,8 +537,20 @@ namespace RecallAR.EditorTools
             SetField(rewardController, "pointsText", pointsText);
             SetField(rewardController, "totalText", totalText);
 
+            var memoryGame = managers.AddComponent<MemoryGameController>();
+            SetField(memoryGame, "player", player.transform);
+            SetField(memoryGame, "zoneCenter", corner.zone);
+            SetObjectArray(memoryGame, "people", corner.people);
+            SetField(memoryGame, "personRecognition", personProvider);
+            SetField(memoryGame, "identityCard", identityCard);
+            SetField(memoryGame, "rewards", rewardController);
+            SetField(memoryGame, "timerText", timerText);
+            SetField(memoryGame, "timerPanel", timerPanel.gameObject);
+            SetField(memoryGame, "cornerSign", corner.sign);
+
             var demoManager = managers.AddComponent<DemoSceneManager>();
             SetField(demoManager, "questManager", questManager);
+            SetField(demoManager, "memoryGame", memoryGame);
             SetField(demoManager, "memoryCard", memoryCard);
             SetField(demoManager, "memoryGarden", memoryGarden);
             SetField(demoManager, "instructionPanel", instructionPanel.gameObject);
@@ -663,6 +742,21 @@ namespace RecallAR.EditorTools
                 return;
             }
             prop.objectReferenceValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetObjectArray(Object target, string fieldName, Object[] values)
+        {
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(fieldName);
+            if (prop == null)
+            {
+                Debug.LogError($"DemoSceneBuilder: no array field '{fieldName}' on {target.GetType().Name}");
+                return;
+            }
+            prop.arraySize = values.Length;
+            for (var i = 0; i < values.Length; i++)
+                prop.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

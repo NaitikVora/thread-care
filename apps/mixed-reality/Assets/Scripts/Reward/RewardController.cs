@@ -40,14 +40,19 @@ namespace RecallAR.Reward
 
         private void HandleQuestCompleted(QuestDefinition quest)
         {
-            var points = quest.rewardPoints;
+            AddPoints(quest.rewardPoints);
+            memoryGarden.GrowOne();
+        }
+
+        /// <summary>Points only ever go up; used by quests and the memory game.</summary>
+        public void AddPoints(int points)
+        {
+            if (points <= 0) return;
             TotalPoints += points;
             pointsText.text = "+" + points;
             pointsPanel.SetActive(true);
             hideAt = Time.time + pointsPanelDuration;
             RefreshTotal();
-
-            memoryGarden.GrowOne();
         }
 
         private void RefreshTotal()

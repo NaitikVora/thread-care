@@ -20,6 +20,9 @@ namespace RecallAR.Data
         [TextArea]
         public string associatedMemory = "You and Sarah visited Boston together.";
 
+        [Tooltip("A gentle, factual cue used as the hint in the memory game, e.g. \"Susan has white hair and glasses.\"")]
+        public string identifyingHint = "";
+
         public Sprite profileImage;
 
         [Tooltip("Seconds of held gaze before this person is considered recognized.")]

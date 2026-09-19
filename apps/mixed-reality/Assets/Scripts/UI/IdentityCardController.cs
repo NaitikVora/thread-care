@@ -22,6 +22,11 @@ namespace RecallAR.UI
 
         private RecognizablePerson currentPerson;
 
+        /// <summary>While true (e.g. during the memory game, where looking at a
+        /// person is an answer, not a request for help) recognition does not
+        /// pop the card.</summary>
+        public bool Suppressed { get; set; }
+
         public void Bind(IPersonRecognitionProvider provider)
         {
             provider.PersonRecognized += HandlePersonRecognized;
@@ -43,7 +48,7 @@ namespace RecallAR.UI
 
         private void HandlePersonRecognized(RecognizablePerson person)
         {
-            if (memoryCard != null && memoryCard.IsVisible) return;
+            if (Suppressed || (memoryCard != null && memoryCard.IsVisible)) return;
             currentPerson = person;
             nameText.text = person.displayName;
             relationshipText.text = person.relationship;
