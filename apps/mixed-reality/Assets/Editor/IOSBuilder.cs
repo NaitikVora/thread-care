@@ -39,6 +39,8 @@ namespace RecallAR.EditorTools
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.recallar.demo");
             PlayerSettings.iOS.targetOSVersionString = "15.0";
             PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+            // Personal team used for device testing; change for another Apple ID.
+            PlayerSettings.iOS.appleDeveloperTeamID = "HS3A356T4G";
             PlayerSettings.iOS.cameraUsageDescription = "RecallAR shows memory activities in your own room using the camera.";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.iOS.requiresFullScreen = true;
