@@ -26,6 +26,48 @@ namespace RecallAR.EditorTools
         public static void BuildFromCommandLine() => BuildFromMenu();
         public static void BuildARFromCommandLine() => BuildArFromMenu();
 
+        /// <summary>
+        /// ARKit's build processor decides whether to ship libUnityARKit.a from a
+        /// static flag that, in batch mode, is only refreshed by a define it adds
+        /// during the build — too late for that same build, so the first
+        /// headless build silently omits the native plugin and ARKit never
+        /// starts on the phone. Set the flag directly (and persist the define
+        /// for later Editor sessions) so every build includes the plugin.
+        /// </summary>
+        private static void ForceArKitPluginsIntoBuild()
+        {
+            const string define = "UNITY_XR_ARKIT_LOADER_ENABLED";
+
+            System.Type processor = null;
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (!asm.GetName().Name.StartsWith("Unity.XR.ARKit")) continue;
+                processor = asm.GetType("UnityEditor.XR.ARKit.ARKitBuildProcessor", false);
+                if (processor != null) break;
+            }
+            if (processor == null)
+            {
+                Debug.Log("IOSBuilder: ARKit package not present; skipping ARKit plugin forcing.");
+                return;
+            }
+
+            var field = processor.GetField("loaderEnabled",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (field != null)
+            {
+                field.SetValue(null, true);
+                Debug.Log("IOSBuilder: ARKitBuildProcessor.loaderEnabled forced to true for this build.");
+            }
+            else Debug.LogWarning("IOSBuilder: could not find ARKitBuildProcessor.loaderEnabled; ARKit plugin may be omitted.");
+
+            PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.iOS, out var defines);
+            if (System.Array.IndexOf(defines, define) < 0)
+            {
+                var list = new System.Collections.Generic.List<string>(defines) { define };
+                PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.iOS, list.ToArray());
+            }
+        }
+
         private static void Build(string scene, string outputDir)
         {
             if (!File.Exists(scene))
@@ -33,6 +75,8 @@ namespace RecallAR.EditorTools
                 Debug.LogError($"IOSBuilder: scene missing ({scene}) — build it from the RecallAR menu first.");
                 return;
             }
+
+            ForceArKitPluginsIntoBuild();
 
             PlayerSettings.productName = "RecallAR";
             PlayerSettings.companyName = "RecallAR";
